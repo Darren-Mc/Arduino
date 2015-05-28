@@ -12,7 +12,8 @@
 /************/
 /* INCLUDES */
 /************/
-#include <Servo.h> // Use of the Servo library disables analogWrite() (PWM) functionality on pins 9 and 10
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
 
 /*********************************/
 /* General system debugging code */
@@ -37,13 +38,6 @@
 // Elbow Servo =       HS-755HB
 // Wrist Servo =       HS-422
 // Gripper Servo =     HS-422 <-- Unsure if this is correct
-
-// Servo pins
-#define BAS_PIN  2
-#define SHL_PIN  3
-#define ELB_PIN  4
-#define WRI_PIN  10
-#define GRI_PIN  5
 
 // Analog pins used for accelerometers
 #define BAS_R_PIN 0
@@ -120,10 +114,44 @@
 #define WRI 3
 #define GRI 4
 
+// Depending on your servo make, the pulse width min and max may vary, you 
+// want these to be as small/large as possible without hitting the hard stop
+// for max range. You'll have to tweak them as necessary to match the servos you
+// have!
+#define BAS_MIN_D  0   // this is the 'minimum' angle in base servo range, 0 = -y direction
+#define BAS_MAX_D  180 // this is the 'maximum' angle in base servo range, 180 = +y direction
+#define SHL_MIN_D  0   // 0 = horizontal in +x direction
+#define SHL_MAX_D  180 // 180 = horizontal in -x direction
+#define ELB_MIN_D  0   // 0 = elbow closed
+#define ELB_MAX_D  180 // 180 = elbow open, ulna parallel to humerus
+#define WRI_MIN_D  0   // 0 = wrist closed
+#define WRI_MAX_D  180 // 180 = wrist open, hand parallel to ulna
+#define GRI_MIN_D  100 // 100 = gripper fully open
+#define GRI_MAX_D  180 // 180 = gripper fully closed
+
+#define BAS_MIN    146 // this is the pulse length count (out of 4096) that corresponds to BAS_MIN_D
+#define BAS_MAX    590 // this is the pulse length count (out of 4096) that corresponds to BAS_MAX_D
+#define SHL_MIN    186 // this is the pulse length count (out of 4096) that corresponds to SHL_MIN_D
+#define SHL_MAX    612 // this is the pulse length count (out of 4096) that corresponds to SHL_MAX_D //HS805BB 186-612
+#define ELB_MIN    590 // this is the pulse length count (out of 4096) that corresponds to ELB_MIN_D
+#define ELB_MAX    146 // this is the pulse length count (out of 4096) that corresponds to ELB_MAX_D
+#define WRI_MIN    146 // this is the pulse length count (out of 4096) that corresponds to WRI_MIN_D
+#define WRI_MAX    590 // this is the pulse length count (out of 4096) that corresponds to WRI_MAX_D
+#define GRI_MIN    382 // this is the pulse length count (out of 4096) that corresponds to GRI_MIN_D
+#define GRI_MAX    590 // this is the pulse length count (out of 4096) that corresponds to GRI_MAX_D
+
+#define BAS_PARK 90
+#define SHL_PARK 90
+#define ELB_PARK 180
+#define WRI_PARK 90
+
 /*****************/
 /* SERVO OBJECTS */
 /*****************/
-Servo servo[5]; // Array of servos, use ID to address each individual servo
+// called this way, it uses the default address 0x40
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+// you can also call it with a different address you want
+//Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
 
 /********************/
 /* GLOBAL VARIABLES */
@@ -131,11 +159,11 @@ Servo servo[5]; // Array of servos, use ID to address each individual servo
 // 'current' variables store the intended angles and 'actual' variables store the real angles used by servos
 // e.g. for an elbow current angle of 180 (the elbow is in line with the shoulder) the real angle is around 0
 int     i,j,count=0;
-int     ret_val, move_delay = 50; // move_delay is defined at global scope and is used to control speed of arm
+int     ret_val, g_moveDelay = 50; // g_moveDelay is defined at global scope and is used to control speed of arm
 char    buf[MAX_BUFFER+1];
-float   number[4], current[4], actual[4];
-float   current_g, current_r, current_h, current_l;
-float   old_r, old_h, old_b;
+float   number[4], current[4], actual[4], g_angle_d[4];
+float   g_radius_mm, g_height_mm, g_hand_d, g_sliderPos;
+float   g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d;
 
 const float gradient[] = {BAS_GRADIENT, SHL_GRADIENT, ELB_GRADIENT, WRI_GRADIENT, GRI_GRADIENT};
 const float offset[] = {BAS_OFFSET, SHL_OFFSET, ELB_OFFSET, WRI_OFFSET, GRI_OFFSET};
@@ -144,11 +172,16 @@ const float H_PIN[] = {BAS_H_PIN, SHL_H_PIN, ELB_H_PIN, WRI_H_PIN};
 const float R_REF[] = {BAS_R_REF, SHL_R_REF, ELB_R_REF, WRI_R_REF};
 const float H_REF[] = {BAS_H_REF, SHL_H_REF, ELB_H_REF, WRI_H_REF};
 
+const float SERVO_MIN_D[] = {BAS_MIN_D, SHL_MIN_D, ELB_MIN_D, WRI_MIN_D, GRI_MIN_D};
+const float SERVO_MAX_D[] = {BAS_MAX_D, SHL_MAX_D, ELB_MAX_D, WRI_MAX_D, GRI_MAX_D};
+const float SERVO_MIN[] = {BAS_MIN, SHL_MIN, ELB_MIN, WRI_MIN, GRI_MIN};
+const float SERVO_MAX[] = {BAS_MAX, SHL_MAX, ELB_MAX, WRI_MAX, GRI_MAX};
+
 /********************/
 /* PRE CALCULATIONS */
 /********************/
-float hum_sq = HUMERUS*HUMERUS;
-float uln_sq = ULNA*ULNA;
+float HUM_SQ = HUMERUS*HUMERUS;
+float ULN_SQ = ULNA*ULNA;
 
 /*****************/
 /* RETURN VALUES */
@@ -163,67 +196,61 @@ float uln_sq = ULNA*ULNA;
 /* FUNCTIONS */
 /*************/
 // Moves arm to specified servo angles
-int moveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float wri_angle_d )
+int moveArm( float basAngle_d, float shlAngle_d, float elbAngle_d, float wriAngle_d )
 {  
    int ret_val;
    
-   DEBUG("moveArm("); DEBUG(bas_angle_d); DEBUG(","); DEBUG(shl_angle_d); DEBUG(","); DEBUG(elb_angle_d); DEBUG(","); DEBUG(wri_angle_d); DEBUG(")-->(");
+   DEBUG("moveArm("); DEBUG(basAngle_d); DEBUG(","); DEBUG(shlAngle_d); DEBUG(","); DEBUG(elbAngle_d); DEBUG(","); DEBUG(wriAngle_d); DEBUGln(")");
    
-   DEBUG(adjust(BAS, bas_angle_d)); DEBUG(","); DEBUG(adjust(SHL, shl_angle_d)); DEBUG(","); DEBUG(adjust(ELB, elb_angle_d)); DEBUG(","); DEBUG(adjust(WRI, wri_angle_d)); DEBUGln(")");
    //Drive servos
-   if ( ( ret_val = servoWrite( BAS, adjust(BAS, bas_angle_d) ) ) != 0 ) return ret_val;
-   if ( ( ret_val = servoWrite( SHL, adjust(SHL, shl_angle_d) ) ) != 0 ) return ret_val;
-   if ( ( ret_val = servoWrite( ELB, adjust(ELB, elb_angle_d) ) ) != 0 ) return ret_val;
-   if ( ( ret_val = servoWrite( WRI, adjust(WRI, wri_angle_d) ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWrite( BAS, basAngle_d ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWrite( SHL, shlAngle_d ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWrite( ELB, elbAngle_d ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWrite( WRI, wriAngle_d ) ) != 0 ) return ret_val;
    
-   delay(move_delay);
+   delay(g_moveDelay);
    
    return ret_val;
 }
 
 // Moves the arm slowly to a new position, depending on the specified delay
 // If the last input angle is negative, the function will determine the wrist angle required to achieve horizontal position
-int slowMoveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float wri_angle_d )
+int slowMoveArm( float basAngle_d, float shlAngle_d, float elbAngle_d, float wriAngle_d )
 { 
-   if ( wri_angle_d < 0 ) wri_angle_d = current[WRI] + current[SHL] - shl_angle_d + current[ELB] - elb_angle_d;
-   
-   if ( wri_angle_d < 0 ) wri_angle_d = 0;
-   else if ( wri_angle_d > 180 ) wri_angle_d = 180;
-   
-   DEBUG("slowMoveArm("); DEBUG(bas_angle_d); DEBUG(","); DEBUG(shl_angle_d); DEBUG(","); DEBUG(elb_angle_d); DEBUG(","); DEBUG(wri_angle_d); DEBUGln(")");
+   DEBUG("slowMoveArm("); DEBUG(basAngle_d); DEBUG(","); DEBUG(shlAngle_d); DEBUG(","); DEBUG(elbAngle_d); DEBUG(","); DEBUG(wriAngle_d); DEBUGln(")");
    
    int ret_val;
-   float diff_b = abs( bas_angle_d - current[BAS] );
-   float diff_s = abs( shl_angle_d - current[SHL] );
-   float diff_e = abs( elb_angle_d - current[ELB] );
-   float diff_w = abs( wri_angle_d - current[WRI] );
+   float bDiff = abs( basAngle_d - g_angle_d[BAS] );
+   float sDiff = abs( shlAngle_d - g_angle_d[SHL] );
+   float eDiff = abs( elbAngle_d - g_angle_d[ELB] );
+   float wDiff = abs( wriAngle_d - g_angle_d[WRI] );
    
-   float steps = max( diff_b, diff_s );
-   steps = max( steps, diff_e );
-   steps = max( steps, diff_w );
+   float steps = max( bDiff, sDiff );
+   steps = max( steps, eDiff );
+   steps = max( steps, wDiff );
    steps = round(steps);
    DEBUG("Steps: "); DEBUGln(steps);
    
    if( steps < 2 )
    {
-      ret_val = moveArm( bas_angle_d, shl_angle_d, elb_angle_d, wri_angle_d );
+      ret_val = moveArm( basAngle_d, shlAngle_d, elbAngle_d, wriAngle_d );
    }
    else
    {
-      float b_step = (bas_angle_d - current[BAS])/steps;
-      float s_step = (shl_angle_d - current[SHL])/steps;
-      float e_step = (elb_angle_d - current[ELB])/steps;
-      float w_step = (wri_angle_d - current[WRI])/steps;
+      float bStep = (basAngle_d - g_angle_d[BAS])/steps;
+      float sStep = (shlAngle_d - g_angle_d[SHL])/steps;
+      float eStep = (elbAngle_d - g_angle_d[ELB])/steps;
+      float wStep = (wriAngle_d - g_angle_d[WRI])/steps;
       
-      float b_move = current[BAS] + b_step;
-      float s_move = current[SHL] + s_step;
-      float e_move = current[ELB] + e_step;
-      float w_move = current[WRI] + w_step;
+      float bMove = g_angle_d[BAS] + bStep;
+      float sMove = g_angle_d[SHL] + sStep;
+      float eMove = g_angle_d[ELB] + eStep;
+      float wMove = g_angle_d[WRI] + wStep;
       
       for(int i=0; i<steps; i++)
       {
-         if( ( ret_val = moveArm( b_move, s_move, e_move, w_move ) ) != 0 ) break;
-         b_move += b_step; s_move += s_step; e_move += e_step; w_move += w_step;
+         if( ( ret_val = moveArm( bMove, sMove, eMove, wMove ) ) != 0 ) break;
+         bMove += bStep; sMove += sStep; eMove += eStep; wMove += wStep;
       }
    }
 
@@ -231,78 +258,76 @@ int slowMoveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float 
 }
 
 // Arm positioning routine utilizing inverse kinematics in cylindrical coordinates
-// (r = radius, h = height, b = azimuth = base servo angle
-int moveArmCoord( float radius_mm, float height_mm, float bas_angle_d )
+// (r = radius, h = height, b = azimuth = base servo angle, handAngle = angle of hand from horizontal)
+int moveArmCoord( float radius_mm, float height_mm, float basAngle_d, float handAngle_d )
 {
-   DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(bas_angle_d); DEBUGln(")");
-   /* Wrist position */
-   float wri_h = height_mm - BASE_HEIGHT;
-   float wri_r = radius_mm;
-   /* Shoulder to wrist distance ( AKA sw ) */
-   float s_w = ( wri_h * wri_h ) + ( wri_r * wri_r ); 
-   float s_w_sqrt = sqrt( s_w ); // Length of line from shoulder to wrist (S-W)
-   /* s_w angle to ground */
-   float a1 = atan2( wri_h, wri_r ); // Angle between S-W line and ground
-   /* s_w angle to humerus */
-   float a2 = acos((( hum_sq - uln_sq ) + s_w ) / ( 2 * HUMERUS * s_w_sqrt )); // Angle between S-W line and humerus
+   DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUGln(")");
+   /* Lengths from shoulder to wrist in cylindrical coordinates */
+   float s2w_h = height_mm - BASE_HEIGHT - HAND*sin( radians( handAngle_d) );
+   float s2w_r = radius_mm - HAND*cos( radians( handAngle_d) );
+   /* Shoulder to wrist distance ( AKA s2w ) */
+   float s2w = ( s2w_h * s2w_h ) + ( s2w_r * s2w_r ); 
+   float s2w_sqrt = sqrt( s2w ); // Length of line from shoulder to wrist (S-W)
+   /* s2w angle to ground */
+   float a1 = atan2( s2w_h, s2w_r ); // Angle between S-W line and ground
+   /* s2w angle to humerus */
+   float a2 = acos((( HUM_SQ - ULN_SQ ) + s2w ) / ( 2 * HUMERUS * s2w_sqrt )); // Angle between S-W line and humerus
    /* shoulder angle */
-   float shl_angle_r = a1 + a2;
-   float shl_angle_d = degrees( shl_angle_r );
+   float shlAngle_r = a1 + a2;
    /* elbow angle */
-   float elb_angle_r = acos(( hum_sq + uln_sq - s_w ) / ( 2 * HUMERUS * ULNA )); // Angle between humerus and ulna
-   float elb_angle_d = degrees( elb_angle_r ); // Shifted so that neutral position is 180 degrees
+   float elbAngle_r = acos(( HUM_SQ + ULN_SQ - s2w ) / ( 2 * HUMERUS * ULNA )); // Angle between humerus and ulna
+   /* wrist angle */
+   float wriAngle_d = 360 - degrees(shlAngle_r + elbAngle_r);
    
-   return ( s_w_sqrt > HUMERUS + ULNA ) ? -3 : slowMoveArm( bas_angle_d, shl_angle_d, elb_angle_d, -1 ); // Return -3 if no solution exists (out of range)
+   return ( s2w_sqrt > HUMERUS + ULNA ) ? -3 : slowMoveArm( basAngle_d, degrees(shlAngle_r), degrees(elbAngle_r), wriAngle_d ); // Return -3 if no solution exists (out of range)
 }
 
 // Moves the arm slowly to a new position, depending on the specified delay using cylindrical coordinates
 // (r = radius, h = height, b = azimuth = base servo angle)
-int slowMoveArmCoord( float radius_mm, float height_mm, float bas_angle_d )
+int slowMoveArmCoord( float radius_mm, float height_mm, float basAngle_d, float handAngle_d )
 {
-   DEBUG("slowMoveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(bas_angle_d); DEBUGln(")");
+   DEBUG("slowMoveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUG(","); DEBUG(handAngle_d); DEBUGln(")");
    
    calcPosition();
    
-   old_r = current_r; old_h = current_h; old_b = current[BAS]; // Use with feedback to allow reversing after a collision
+   g_prevRadius_mm = g_radius_mm; g_prevHeight_mm = g_height_mm; g_prevBase_d = g_angle_d[BAS]; g_prevHand_d = g_hand_d;// Use with feedback to allow reversing after a collision
    
    int ret_val;
-   float diff_r = abs( radius_mm - current_r );
-   float diff_h = abs( height_mm - current_h );
-   float diff_b = abs( bas_angle_d - current[BAS] );
+   float rDiff = abs( radius_mm - g_radius_mm );
+   float hDiff = abs( height_mm - g_height_mm );
+   float bDiff = abs( basAngle_d - g_angle_d[BAS] );
+   float dDiff = abs( handAngle_d - g_hand_d );
    
-   int steps = max( diff_r, diff_h );
-   steps = max( steps, diff_b );
+   int steps = max( rDiff, hDiff );
+   steps = max( steps, bDiff );
+   steps = max( steps, dDiff );
    DEBUG("Steps: "); DEBUGln(steps);
    
-   float r_step = ( radius_mm - current_r )/steps;
-   float h_step = ( height_mm - current_h )/steps;
-   float b_step = ( bas_angle_d - current[BAS] )/steps;
+   float rStep = ( radius_mm - g_radius_mm )/steps;
+   float hStep = ( height_mm - g_height_mm )/steps;
+   float bStep = ( basAngle_d - g_angle_d[BAS] )/steps;
+   float dStep = ( handAngle_d - g_hand_d )/steps;
    
-   float r_move = current_r + r_step;
-   float h_move = current_h + h_step;
-   float b_move = current[BAS] + b_step;
+   float rMove = g_radius_mm + rStep;
+   float hMove = g_height_mm + hStep;
+   float bMove = g_angle_d[BAS] + bStep;
+   float dMove = g_hand_d + dStep;
    
    for(int i=0; i<steps; i++)
    {
-     if ( ( ret_val = moveArmCoord( r_move, h_move, b_move ) )  != 0 ) return ret_val;
-     r_move += r_step; h_move += h_step; b_move += b_step;
+     if ( ( ret_val = moveArmCoord( rMove, hMove, bMove, dMove ) )  != 0 ) return ret_val;
+     rMove += rStep; hMove += hStep; bMove += bStep; dMove += dStep;
    }
    
-   delay(100); // Wait for arm to stop moving
+   //delay(100); // Wait for arm to stop moving
    
-   levelGripper();
+   //levelGripper();
    
-   delay(100); // Wait for arm to stop moving
+   //delay(100); // Wait for arm to stop moving
    
-   if ( checkPosition() != 0 ) return -4; // Stall detection
+   //if ( checkPosition() != 0 ) return -4; // Stall detection
 
    return 0;
-}
-
-// Adjust the servo angle to compensate for servo error
-float adjust( int id, float angle_d )
-{
-   return gradient[id]*angle_d + offset[id];
 }
 
 // Sends signal to stepper motor to move slider in a given direction
@@ -317,7 +342,7 @@ void slide(int dir, int steps)
       delay(1);
       digitalWrite(STEP_PIN, LOW);
       delay(1);
-      dir ? current_l++ : current_l--;
+      dir ? g_sliderPos++ : g_sliderPos--;
    }
    DEBUGln();
 }
@@ -330,7 +355,7 @@ int limitSwitch(int dir)
    {
       if(digitalRead(LSWITCH_PIN))
       {
-         current_l = 0;
+         g_sliderPos = 0;
          return -1;
       }
    }
@@ -338,11 +363,11 @@ int limitSwitch(int dir)
    {
       if(digitalRead(RSWITCH_PIN))
       {
-         current_l = MAX_STEPS;
+         g_sliderPos = MAX_STEPS;
          return -2;
       }
    }
-   DEBUG(current_l); DEBUG(" ");
+   DEBUG(g_sliderPos); DEBUG(" ");
    return 0;
 }
 
@@ -414,11 +439,11 @@ float levelGripper()
 int checkPosition()
 {
    float angle_d = getAngle(SHL);
-   if ( abs( angle_d - current[SHL] ) > THRESHOLD3 ) return 1;
-   DEBUG("Check1: "); DEBUGln(angle_d - current[SHL]);
+   if ( abs( angle_d - g_angle_d[SHL] ) > THRESHOLD3 ) return 1;
+   DEBUG("Check1: "); DEBUGln(angle_d - g_angle_d[SHL]);
    angle_d = getAngle(ELB) - angle_d;
-   DEBUG("Check2: "); DEBUGln(angle_d - current[ELB] + 180);
-   return ( abs( angle_d - current[ELB] + 180 ) > THRESHOLD3 );
+   DEBUG("Check2: "); DEBUGln(angle_d - g_angle_d[ELB] + 180);
+   return ( abs( angle_d - g_angle_d[ELB] + 180 ) > THRESHOLD3 );
 }
 
 // Read from accelerometers and determine angle from horizontal
@@ -432,24 +457,17 @@ float getAngle(int id)
 }
 
 // Write angle to servo using microseconds for added precision
-int servoWrite( int id, float angle_deg )
+int servoWrite( int id, float angle_d )
 {
 //   DEBUG("servoWrite("); DEBUG(id); DEBUG(", "); DEBUG(angle_deg); DEBUGln(")");
-   int angle_us = round( 600 + 10*angle_deg );
-   if ( angle_us < 600 )
-   {
-      if ( angle_deg < round( gradient[id] * (gradient[id] > 0 ? 0 : 180) + offset[id] ) ) return -1; // Allows inputs from 0-180 before adjustments are made
-      angle_us = 600; DEBUGln("Clipped at 0");
-   }
-   if ( angle_us > 2400 )
-   {
-      if ( angle_deg > round( gradient[id] * (gradient[id] > 0 ? 180 : 0) + offset[id] ) ) return -2; // Allows inputs from 0-180 before adjustments are made
-      angle_us = 2400; DEBUGln("Clipped at 180");
-   }
+   if (angle_d < SERVO_MIN_D[id]) { DEBUG(angle_d); DEBUG("<"); DEBUGln(SERVO_MIN_D[id]); return -1; }
+   if (angle_d > SERVO_MAX_D[id]) { DEBUG(angle_d); DEBUG(">"); DEBUGln(SERVO_MAX_D[id]); return -2; }
    
-   servo[id].writeMicroseconds( angle_us );
-   actual[id] = angle_deg;
-   current[id] = (angle_deg - offset[id])/gradient[id];
+   float pulseLength = map(angle_d, 0, 180, SERVO_MIN[id], SERVO_MAX[id]);
+   
+   pwm.setPWM(id, 0, pulseLength);
+   
+   g_angle_d[id] = angle_d;
    
    return 0;
 }
@@ -457,13 +475,13 @@ int servoWrite( int id, float angle_deg )
 // Calculates the cylindrical coordinates of the wrist from the servo angles
 void calcPosition()
 {   
-   float s = current[SHL]; float e = current[ELB] - 180;
+   float s = g_angle_d[SHL], e = g_angle_d[ELB] - 180, w = g_angle_d[WRI] - 180;
    
-   current_r = HUMERUS*cos( radians(s) ) + ULNA*cos( radians(s + e) );
+   g_radius_mm = HUMERUS*cos( radians(s) ) + ULNA*cos( radians(s + e) ) + HAND*cos( radians(s + e + w) );
    
-   current_h = BASE_HEIGHT + HUMERUS*sin( radians(s) ) + ULNA*sin( radians(s + e) );
+   g_height_mm = BASE_HEIGHT + HUMERUS*sin( radians(s) ) + ULNA*sin( radians(s + e) ) + HAND*sin( radians(s + e + w) );
    
-   DEBUG("current_r: "); DEBUG(current_r); DEBUG(", current_h: "); DEBUGln(current_h);
+   DEBUG("g_radius_mm: "); DEBUG(g_radius_mm); DEBUG(", g_height_mm: "); DEBUGln(g_height_mm);
 }
 
 /*********/
@@ -480,26 +498,27 @@ void setup()
    pinMode(RSWITCH_PIN, INPUT);
    pinMode(LIGHT_PIN, OUTPUT);
    
-   servo[BAS].attach(BAS_PIN, 600, 2400);
-   servo[GRI].attach(GRI_PIN, 600, 2400);
-   servo[WRI].attach(WRI_PIN, 600, 2400);
-   servo[SHL].attach(SHL_PIN, 600, 2400);
-   servo[ELB].attach(ELB_PIN, 600, 2400);
-
+   pwm.begin();
+  
+   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
+   
    // Move arm to rest position and calculate position
-   servoWrite(BAS,adjust(BAS,90));
-   servoWrite(SHL,adjust(SHL,90));
-   servoWrite(ELB,adjust(ELB,180));
-   servoWrite(WRI,adjust(WRI,0));
-   servoWrite(GRI,GRI_OPEN);
+   servoWrite( BAS, BAS_PARK );
+   servoWrite( SHL, SHL_PARK );
+   servoWrite( ELB, ELB_PARK );
+   servoWrite( WRI, WRI_PARK );
+   servoWrite( GRI, GRI_OPEN );
+   DEBUG("Robot parked: {"); DEBUG(g_angle_d[BAS]); DEBUG(","); DEBUG(g_angle_d[SHL]); DEBUG(","); DEBUG(g_angle_d[ELB]); DEBUG(","); DEBUG(g_angle_d[WRI]); DEBUGln(",delay}");
    calcPosition();
-   slide(LEFT,MAX_STEPS);
+   DEBUG("Robot parked: <"); DEBUG(g_radius_mm); DEBUG(","); DEBUG(g_height_mm); DEBUG(","); DEBUG(g_angle_d[BAS]); DEBUG(","); DEBUG(g_hand_d); DEBUGln(",delay>");
+   DEBUGln("Enter r to return robot to park position\n");
+   //slide(LEFT,MAX_STEPS);
     
-   DEBUGln("Base Servo Attached - Pin 2");
-   DEBUGln("Shoulder Servo Attached - Pin 3");
-   DEBUGln("Elbow Servo Attached - Pin 4");
-   DEBUGln("Wrist Servo Attached - Pin 10");
-   DEBUGln("Gripper Servo Attached - Pin 11\n");
+   DEBUGln("Base Servo = 0");
+   DEBUGln("Shoulder Servo = 1");
+   DEBUGln("Elbow Servo = 2");
+   DEBUGln("Wrist Servo = 3");
+   DEBUGln("Gripper Servo = 4\n");
 }
 
 /********/
@@ -514,7 +533,9 @@ void loop()
       switch( buf[i] )
       {
          case 'o': 
-            servoWrite(GRI,GRI_OPEN); Serial.println("Gripper Opened"); break;
+            if( ( ret_val = servoWrite(GRI,GRI_OPEN) ) == 0 ) Serial.println("Gripper Opened"); 
+            else Serial.println(ret_val);
+            break;
          case 'c':
             servoWrite(GRI,GRI_CLOSED); Serial.println("Gripper Closed"); break;
          case 's':
@@ -522,12 +543,12 @@ void loop()
          case 'p':
             servoWrite(GRI,GRI_MICROPLATE); Serial.println("Gripped Microplate"); break;
          case 'r':
-            move_delay = 20;
-            if( ( ret_val = slowMoveArm(90,90,180,0) ) == 0 ) Serial.println("Arm moved to rest position");
+            g_moveDelay = 20;
+            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK) ) == 0 ) Serial.println("Arm returned to park position");
             else Serial.println(ret_val);
             break;
          case 'R':
-            moveArm(90,90,180,0); Serial.println("Arm moved to rest position"); break;
+            moveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK); Serial.println("ARM PARKED!"); break;
             
          case 'l': //start of setting light PWM value
             i=0; buf[i] = Serial.read(); delay(1);
@@ -578,12 +599,12 @@ void loop()
             }
             buf[i] = '\0';
             number[0] = atof(buf);
-            move_delay = 50;
-            Serial.println(slowMoveArm(current[BAS],current[SHL],number[0],-1));
+            g_moveDelay = 50;
+            Serial.println(slowMoveArm(number[0],g_angle_d[SHL],g_angle_d[ELB],g_angle_d[WRI]));
             break;
             
          case '<': // start of coordinate move packet
-            for(j=0; j<3; j++) // capture first 4 arguments: depth, height, base angle, hand angle
+            for(j=0; j<4; j++) // capture first 4 arguments: depth, height, base angle, hand angle
             {
                i=0;
                buf[i] = Serial.read(); delay(1);
@@ -605,24 +626,24 @@ void loop()
                buf[i] = Serial.read(); delay(1);
             }
             buf[i] = '\0';
-            move_delay = atof( buf ); // move_delay
-            ret_val = slowMoveArmCoord( number[0], number[1], number[2] );
+            g_moveDelay = atof( buf ); // g_moveDelay
+            ret_val = slowMoveArmCoord( number[0], number[1], number[2], number[3] );
             if( ret_val == 0 )
             {
-               Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.println(number[2]);
+               Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.print(number[2]); Serial.print(","); Serial.println(number[3]);
             }
             else
             {
                Serial.println(ret_val);
                if ( ret_val == -4 ) // If the arm did not reach the destination, return to previous position
                {
-                  slowMoveArmCoord( old_r, old_h, old_b );
+                  slowMoveArmCoord( g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d );
                }
             }
             break;
             
          case '{': // start of servo angle move packet
-            for(j=0; j<4; j++) // capture first 4 arguments: bas_angle_d, shl_angle_d, elb_angle_d & wri_angle_d
+            for(j=0; j<4; j++) // capture first 4 arguments: basAngle_d, shlAngle_d, elbAngle_d & wriAngle_d
             {
                i=0;
                buf[i] = Serial.read(); delay(1);
@@ -644,11 +665,11 @@ void loop()
                buf[i] = Serial.read(); delay(1);
             }
             buf[i] = '\0';
-            move_delay = atof( buf ); // move_delay
+            g_moveDelay = atof( buf ); // g_moveDelay
             ret_val = slowMoveArm( number[0], number[1], number[2], number[3] );
             if( ret_val == 0 )
             {
-               Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.println(number[2]);
+               Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.print(number[2]); Serial.print(","); Serial.println(number[3]);
             }
             else
             {
