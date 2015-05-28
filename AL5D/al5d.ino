@@ -32,11 +32,11 @@
 /***************************/
 // Servo models taken from http://www.lynxmotion.com/images/html/build143b.htm
 //
-// Base Servo =        HS-485HB <-- Unsure if this is correct    -Matt: seems correct
+// Base Servo =        HS-485HB <-- Unsure if this is correct
 // Shoulder Servo =    HS-805BB
 // Elbow Servo =       HS-755HB
-// Wrist Servo =       HS-645MG                                  -Matt: Actually servo says HS-422
-// Gripper Servo =     HS-485HB <-- Unsure if this is correct    -Matt: pretty sure it's the HS-422
+// Wrist Servo =       HS-422
+// Gripper Servo =     HS-422 <-- Unsure if this is correct
 
 // Servo pins
 #define BAS_PIN  2
@@ -46,20 +46,18 @@
 #define GRI_PIN  5
 
 // Analog pins used for accelerometers
-#define BAS_R_PIN 0                    // There is currently no accelerometer on the base, and I see no need for them but I will leave this redudancy here as it causes no issues
-#define BAS_H_PIN 1                   
-#define SHL_R_PIN 0                   
+#define BAS_R_PIN 0
+#define BAS_H_PIN 1
+#define SHL_R_PIN 0
 #define SHL_H_PIN 1
 #define ELB_R_PIN 2 
 #define ELB_H_PIN 3
-#define WRI_R_PIN 4                    // Currently not used
+#define WRI_R_PIN 4
 #define WRI_H_PIN 5
 
 // Slider pins
 #define STEP_PIN       8
 #define DIR_PIN        9
-
-
 #define LSWITCH_PIN    11
 #define RSWITCH_PIN    12
 
@@ -70,15 +68,15 @@
 /*************/
 #define MAX_BUFFER     100
 #define MAX_STEPS      2354 // Maximum number of steps slider can move
-#define MAX_COUNT 20   // Used for stall detection in levelGripper function  Was 20
-#define THRESHOLD1 50   // Threshold for levelling gripper  Was 3
-#define THRESHOLD2 55   // Maximum range of fluctuations from accelerometer while stationary
-#define THRESHOLD3 65 // Threshold used for error detection in shoulder and elbow movements Was 11
+#define MAX_COUNT 20   // Used for stall detection in levelGripper function
+#define THRESHOLD1 3   // Threshold for levelling gripper
+#define THRESHOLD2 6   // Maximum range of fluctuations from accelerometer while stationary
+#define THRESHOLD3 20  // Threshold used for error detection in shoulder and elbow movements
 
-#define BASE_HEIGHT 169.1   // base height (all mm)
+#define BASE_HEIGHT 169.0   // base height (all mm)
 #define HUMERUS 146.05      // shoulder to elbow
-#define ULNA 157.9        // elbow to wrist 
-#define HAND 108.0           // wrist to gripper tip 
+#define ULNA 187.325        // elbow to wrist 
+#define HAND 90.0           // wrist to gripper tip 
 
 // Gradients and offsets used to adjust servo angles so that measured angles are closer to input
 // See C:\Users\loam\Documents\Darren\Servo Angles v2.ods for derivation
@@ -96,21 +94,20 @@
 
 // Analog references for the centre voltage from accelerometers
 #define BAS_R_REF 0
-#define SHL_R_REF 484.848 
-#define ELB_R_REF 460  // Was 478.788
+#define SHL_R_REF 320
+#define ELB_R_REF 316
 #define WRI_R_REF 0
 
 #define BAS_H_REF 0
-#define SHL_H_REF 520 // Was 548.485
-#define ELB_H_REF 530  // Was 543.939
-#define WRI_H_REF 511.5
+#define SHL_H_REF 362
+#define ELB_H_REF 359
+#define WRI_H_REF 362
 
 // Gripper positions
 #define GRI_OPEN 100
 #define GRI_MICROPLATE 160
 #define GRI_MICROSLIDE 110
 #define GRI_CLOSED 180
-#define GRI_TUBE 150
 
 // Directional definitions for controlling slider
 #define LEFT           LOW
@@ -179,10 +176,7 @@ int moveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float wri_
    if ( ( ret_val = servoWrite( ELB, adjust(ELB, elb_angle_d) ) ) != 0 ) return ret_val;
    if ( ( ret_val = servoWrite( WRI, adjust(WRI, wri_angle_d) ) ) != 0 ) return ret_val;
    
-   
    delay(move_delay);
-   //Serial.print(getAngle(SHL));  Serial.print(","); Serial.print(getAngle(ELB)); Serial.print(",");  Serial.print(getAngle(WRI)); Serial.print(","); Serial.println();
-   Serial.print(analogRead(R_PIN[SHL])); Serial.print(","); Serial.print(analogRead(H_PIN[SHL])); Serial.print(","); Serial.print(analogRead(R_PIN[ELB])); Serial.print(","); Serial.print(analogRead(H_PIN[ELB]));  Serial.print(","); Serial.println(analogRead(H_PIN[WRI]));
    
    return ret_val;
 }
@@ -191,9 +185,9 @@ int moveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float wri_
 // If the last input angle is negative, the function will determine the wrist angle required to achieve horizontal position
 int slowMoveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float wri_angle_d )
 { 
-   if ( wri_angle_d < 0 ) wri_angle_d = current[WRI] - current[SHL] + shl_angle_d - current[ELB] + elb_angle_d;             //Matt: I believe this calculates the required angle of the wrist in order for it to be horizontal. This relies on the sum of the current angles being a constant and so is equal to the sum of the destination angles. I think this is geometrically correct if the wrist is always to be pointed in the same direction.
+   if ( wri_angle_d < 0 ) wri_angle_d = current[WRI] + current[SHL] - shl_angle_d + current[ELB] - elb_angle_d;
    
-   if ( wri_angle_d < 0 ) wri_angle_d = 0;                           // If the desired wrist angle is out of bounds, take it as far as it can go
+   if ( wri_angle_d < 0 ) wri_angle_d = 0;
    else if ( wri_angle_d > 180 ) wri_angle_d = 180;
    
    DEBUG("slowMoveArm("); DEBUG(bas_angle_d); DEBUG(","); DEBUG(shl_angle_d); DEBUG(","); DEBUG(elb_angle_d); DEBUG(","); DEBUG(wri_angle_d); DEBUGln(")");
@@ -237,7 +231,7 @@ int slowMoveArm( float bas_angle_d, float shl_angle_d, float elb_angle_d, float 
 }
 
 // Arm positioning routine utilizing inverse kinematics in cylindrical coordinates
-// (r = radius, h = height, b = azimuth = base servo angle)
+// (r = radius, h = height, b = azimuth = base servo angle
 int moveArmCoord( float radius_mm, float height_mm, float bas_angle_d )
 {
    DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(bas_angle_d); DEBUGln(")");
@@ -250,7 +244,7 @@ int moveArmCoord( float radius_mm, float height_mm, float bas_angle_d )
    /* s_w angle to ground */
    float a1 = atan2( wri_h, wri_r ); // Angle between S-W line and ground
    /* s_w angle to humerus */
-   float a2 = acos((( hum_sq - uln_sq ) + s_w ) / ( 2 * HUMERUS * s_w_sqrt )); // Angle between S-W line and humerus - found using the cosine law
+   float a2 = acos((( hum_sq - uln_sq ) + s_w ) / ( 2 * HUMERUS * s_w_sqrt )); // Angle between S-W line and humerus
    /* shoulder angle */
    float shl_angle_r = a1 + a2;
    float shl_angle_d = degrees( shl_angle_r );
@@ -267,7 +261,7 @@ int slowMoveArmCoord( float radius_mm, float height_mm, float bas_angle_d )
 {
    DEBUG("slowMoveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(bas_angle_d); DEBUGln(")");
    
-  calcPosition();
+   calcPosition();
    
    old_r = current_r; old_h = current_h; old_b = current[BAS]; // Use with feedback to allow reversing after a collision
    
@@ -294,15 +288,14 @@ int slowMoveArmCoord( float radius_mm, float height_mm, float bas_angle_d )
      r_move += r_step; h_move += h_step; b_move += b_step;
    }
    
-  
    delay(100); // Wait for arm to stop moving
    
    levelGripper();
-
+   
    delay(100); // Wait for arm to stop moving
    
-   //check position
    if ( checkPosition() != 0 ) return -4; // Stall detection
+
    return 0;
 }
 
@@ -390,17 +383,16 @@ float levelGripper()
 {
    int ret_val, stall_count = 0;
    float h, h_old, servo_angle = actual[WRI], servo_angle_old = servo_angle;
-   h = H_REF[WRI]- getFeedback(H_PIN[WRI]) ;
+   h = getFeedback(H_PIN[WRI]) - H_REF[WRI];
    h_old = h;
    DEBUG("servo_angle: "); DEBUG(servo_angle); DEBUG(", h: "); DEBUGln(h);
    if ( abs(h) <= THRESHOLD1 ) return 0;
    boolean condition = h > 0;
    while ( ( abs(h) > THRESHOLD1 ) && ( condition ? h > 0 : h < 0 ) )
    {
-      //Serial.println(h-h_old);
       if ( ( ret_val = servoWrite( WRI, condition ? --servo_angle : ++servo_angle ) ) != 0 ) return ret_val;
       delay(20);
-      h = H_REF[WRI]- getFeedback(H_PIN[WRI]);
+      h = getFeedback(H_PIN[WRI]) - H_REF[WRI];
       DEBUG("servo_angle: "); DEBUG(servo_angle); DEBUG(", h: "); DEBUGln(h);
       if ( abs( h - h_old ) < THRESHOLD2 ) stall_count++;
       else
@@ -422,14 +414,11 @@ float levelGripper()
 int checkPosition()
 {
    float angle_d = getAngle(SHL);
-   //Serial.print( angle_d - current[SHL]); 
    if ( abs( angle_d - current[SHL] ) > THRESHOLD3 ) return 1;
    DEBUG("Check1: "); DEBUGln(angle_d - current[SHL]);
    angle_d = getAngle(ELB) - angle_d;
-   //Serial.print(","); Serial.println(angle_d - current[ELB] + 180);
    DEBUG("Check2: "); DEBUGln(angle_d - current[ELB] + 180);
    return ( abs( angle_d - current[ELB] + 180 ) > THRESHOLD3 );
-  
 }
 
 // Read from accelerometers and determine angle from horizontal
@@ -485,14 +474,6 @@ void setup()
    Serial.begin(57600);
    DEBUGln("Serial connection started\n");  
    
-   analogReference(EXTERNAL);      // Sets the analog reference voltage to the voltage supplied to the AREF pin on the board - here this is recieving the 3.3V output from one of the accelerometers.  This sets the upper limit of values read by analogRead(). Since the accelerometers output 0-3.3V, the default upper limit of 5V wastes the top output of analogRead.
-   
-   for(int pinTest = 0; pinTest < 6; pinTest++){
-      for(int testNum = 0; testNum < 3; testNum++){
-          analogRead(pinTest);                          // Upon changing the reference voltage the first few readings may be incorrect so they are done here.
-      }
-   }
-   
    pinMode(STEP_PIN, OUTPUT);
    pinMode(DIR_PIN, OUTPUT);
    pinMode(LSWITCH_PIN, INPUT);
@@ -507,9 +488,9 @@ void setup()
 
    // Move arm to rest position and calculate position
    servoWrite(BAS,adjust(BAS,90));
-   servoWrite(SHL,adjust(SHL,135));
-   servoWrite(ELB,adjust(ELB,45));
-   servoWrite(WRI,adjust(WRI,90));
+   servoWrite(SHL,adjust(SHL,90));
+   servoWrite(ELB,adjust(ELB,180));
+   servoWrite(WRI,adjust(WRI,0));
    servoWrite(GRI,GRI_OPEN);
    calcPosition();
    slide(LEFT,MAX_STEPS);
@@ -525,7 +506,7 @@ void setup()
 /* LOOP */
 /********/
 void loop() 
-{ 
+{
    if(Serial.available() > 0)
    {
       i=0;
@@ -540,11 +521,9 @@ void loop()
             servoWrite(GRI,GRI_MICROSLIDE); Serial.println("Gripped Microscope Slide"); break;
          case 'p':
             servoWrite(GRI,GRI_MICROPLATE); Serial.println("Gripped Microplate"); break;
-         case 't':   
-            servoWrite(GRI,GRI_TUBE); Serial.println("Gripped Tube"); break;
          case 'r':
             move_delay = 20;
-            if( ( ret_val = slowMoveArm(90,135,45,90) ) == 0 ) Serial.println("Arm moved to rest position");
+            if( ( ret_val = slowMoveArm(90,90,180,0) ) == 0 ) Serial.println("Arm moved to rest position");
             else Serial.println(ret_val);
             break;
          case 'R':
@@ -600,11 +579,11 @@ void loop()
             buf[i] = '\0';
             number[0] = atof(buf);
             move_delay = 50;
-            Serial.println(slowMoveArm(current[BAS],current[SHL],current[ELB],number[0]));
+            Serial.println(slowMoveArm(current[BAS],current[SHL],number[0],-1));
             break;
             
          case '<': // start of coordinate move packet
-            for(j=0; j<3; j++) // capture first 3 arguments: depth, height, base angle          
+            for(j=0; j<3; j++) // capture first 4 arguments: depth, height, base angle, hand angle
             {
                i=0;
                buf[i] = Serial.read(); delay(1);
@@ -679,4 +658,3 @@ void loop()
       }
    }
 }
-
