@@ -1,5 +1,5 @@
 /*********************************************************************************************************/
-/* File: AL5D.ino                                                                                        */
+/* File: al5d.ino                                                                                        */
 /* Author: Darren McMorran                                                                               */
 /* Date Started: 28/05/2015                                                                              */
 /*                                                                                                       */
@@ -98,9 +98,9 @@
 #define WRI_H_REF 362
 
 // Gripper positions
-#define GRI_OPEN 100
-#define GRI_MICROPLATE 160
-#define GRI_MICROSLIDE 110
+#define GRI_OPEN 90
+#define GRI_MICROPLATE 150 //500 PulseLength
+#define GRI_MICROSLIDE 150 //500 PulseLength
 #define GRI_CLOSED 180
 
 // Directional definitions for controlling slider
@@ -121,27 +121,31 @@ enum ServoID
 // want these to be as small/large as possible without hitting the hard stop
 // for max range. You'll have to tweak them as necessary to match the servos you
 // have!
-#define BAS_MIN_D  0   // this is the 'minimum' angle in base servo range, 0 = -y direction
+#define BAS_MIN_D  90   // this is the 'minimum' angle in base servo range, 0 = -y direction
 #define BAS_MAX_D  180 // this is the 'maximum' angle in base servo range, 180 = +y direction
-#define SHL_MIN_D  0   // 0 = horizontal in +x direction
-#define SHL_MAX_D  180 // 180 = horizontal in -x direction
-#define ELB_MIN_D  0   // 0 = elbow closed
+#define SHL_MIN_D  16   // 0 = horizontal in +x direction
+#define SHL_MAX_D  165.762 // 180 = horizontal in -x direction
+#define ELB_MIN_D  11.5385   // 0 = elbow closed
 #define ELB_MAX_D  180 // 180 = elbow open, ulna parallel to humerus
-#define WRI_MIN_D  0   // 0 = wrist closed
+#define WRI_MIN_D  43.125 // 0 = wrist closed
 #define WRI_MAX_D  180 // 180 = wrist open, hand parallel to ulna
-#define GRI_MIN_D  100 // 100 = gripper fully open
+#define GRI_MIN_D  90 // 100 = gripper fully open
 #define GRI_MAX_D  180 // 180 = gripper fully closed
 
-#define BAS_MIN    146 // this is the pulse length count (out of 4096) that corresponds to BAS_MIN_D
-#define BAS_MAX    590 // this is the pulse length count (out of 4096) that corresponds to BAS_MAX_D
-#define SHL_MIN    186 // this is the pulse length count (out of 4096) that corresponds to SHL_MIN_D
-#define SHL_MAX    612 // this is the pulse length count (out of 4096) that corresponds to SHL_MAX_D //HS805BB 186-612
-#define ELB_MIN    590 // this is the pulse length count (out of 4096) that corresponds to ELB_MIN_D
-#define ELB_MAX    146 // this is the pulse length count (out of 4096) that corresponds to ELB_MAX_D
-#define WRI_MIN    146 // this is the pulse length count (out of 4096) that corresponds to WRI_MIN_D
-#define WRI_MAX    590 // this is the pulse length count (out of 4096) that corresponds to WRI_MAX_D
-#define GRI_MIN    382 // this is the pulse length count (out of 4096) that corresponds to GRI_MIN_D
+#define BAS_MIN    383 // this is the pulse length count (out of 4096) that corresponds to BAS_MIN_D
+#define BAS_MAX    160 // this is the pulse length count (out of 4096) that corresponds to BAS_MAX_D
+#define SHL_MIN    200 // this is the pulse length count (out of 4096) that corresponds to SHL_MIN_D
+#define SHL_MAX    540 // this is the pulse length count (out of 4096) that corresponds to SHL_MAX_D //HS805BB 186-612
+#define ELB_MIN    540 // this is the pulse length count (out of 4096) that corresponds to ELB_MIN_D
+#define ELB_MAX    175 // this is the pulse length count (out of 4096) that corresponds to ELB_MAX_D
+#define WRI_MIN    500 // this is the pulse length count (out of 4096) that corresponds to WRI_MIN_D
+#define WRI_MAX    135 // this is the pulse length count (out of 4096) that corresponds to WRI_MAX_D
+#define GRI_MIN    320 // this is the pulse length count (out of 4096) that corresponds to GRI_MIN_D
 #define GRI_MAX    590 // this is the pulse length count (out of 4096) that corresponds to GRI_MAX_D
+//WRI 375 = 90
+//ELB 370 = 90
+//SHL 368 = 90  
+//BAS 383 = 90
 
 #define BAS_PARK 90
 #define SHL_PARK 90
@@ -463,17 +467,33 @@ double getAngle(int id)
 // Write angle to servo using microseconds for added precision
 int servoWrite( int id, double angle_d )
 {
-//   DEBUG("servoWrite("); DEBUG(id); DEBUG(", "); DEBUG(angle_deg); DEBUGln(")");
+   //DEBUG("servoWrite("); DEBUG(id); DEBUG(", "); DEBUG(angle_deg); DEBUGln(")");
    if (angle_d < SERVO_MIN_D[id]) { DEBUG(angle_d); DEBUG("<"); DEBUGln(SERVO_MIN_D[id]); return -1; }
    if (angle_d > SERVO_MAX_D[id]) { DEBUG(angle_d); DEBUG(">"); DEBUGln(SERVO_MAX_D[id]); return -2; }
    
-   double pulseLength = map(angle_d, 0, 180, SERVO_MIN[id], SERVO_MAX[id]);
-   
+   double gradient = (SERVO_MAX[id]-SERVO_MIN[id])/(SERVO_MAX_D[id]-SERVO_MIN_D[id]);
+   double pulseLength = angle_d*gradient + SERVO_MIN[id] - gradient*SERVO_MIN_D[id];// + map(angle_d, SERVO_MIN_D[id], SERVO_MAX_D[id], SERVO_MIN[id], SERVO_MAX[id]);
+       
    pwm.setPWM(id, 0, pulseLength);
+   
+   DEBUG("pwm.setPWM("); DEBUG(id); DEBUG(", 0, "); DEBUG(pulseLength); DEBUGln(")");
    
    g_angle_d[id] = angle_d;
    
    return 0;
+}
+
+// Write to servo using pulse length, USE ONLY FOR TESTING
+int servoWritePulse( int id, double pulseLength)
+{
+  if (pulseLength < min(SERVO_MIN[id], SERVO_MAX[id])) { DEBUGln(min(SERVO_MIN[id], SERVO_MAX[id])); return -1; }
+  if (pulseLength > max(SERVO_MIN[id], SERVO_MAX[id])) { DEBUGln(max(SERVO_MIN[id], SERVO_MAX[id])); return -2; }
+  
+  pwm.setPWM(id, 0, pulseLength);
+  
+  DEBUG("pwm.setPWM("); DEBUG(id); DEBUG(", 0, "); DEBUG(pulseLength); DEBUGln(")");
+  
+  return 0;  
 }
 
 // Calculates the cylindrical coordinates of the wrist from the servo angles
@@ -604,7 +624,8 @@ void loop()
             buf[i] = '\0';
             number[0] = atof(buf);
             g_moveDelay = 50;
-            Serial.println(slowMoveArm(number[0],g_angle_d[SHL],g_angle_d[ELB],g_angle_d[WRI]));
+            Serial.println(servoWrite(BAS, number[0]));
+            //Serial.println(slowMoveArm(number[0],g_angle_d[SHL],g_angle_d[ELB],g_angle_d[WRI]));
             break;
             
          case '<': // start of coordinate move packet
