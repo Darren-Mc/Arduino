@@ -468,22 +468,22 @@ double getAngle(int id)
 int servoWrite( int id, double angle_d )
 {
    //DEBUG("servoWrite("); DEBUG(id); DEBUG(", "); DEBUG(angle_deg); DEBUGln(")");
-   if (angle_d < SERVO_MIN_D[id]) { DEBUG(angle_d); DEBUG("<"); DEBUGln(SERVO_MIN_D[id]); return -1; }
-   if (angle_d > SERVO_MAX_D[id]) { DEBUG(angle_d); DEBUG(">"); DEBUGln(SERVO_MAX_D[id]); return -2; }
+   //if (angle_d < SERVO_MIN_D[id]) { DEBUG(angle_d); DEBUG("<"); DEBUGln(SERVO_MIN_D[id]); return -1; }
+   //if (angle_d > SERVO_MAX_D[id]) { DEBUG(angle_d); DEBUG(">"); DEBUGln(SERVO_MAX_D[id]); return -2; }
    
    double gradient = (SERVO_MAX[id]-SERVO_MIN[id])/(SERVO_MAX_D[id]-SERVO_MIN_D[id]);
    double pulseLength = angle_d*gradient + SERVO_MIN[id] - gradient*SERVO_MIN_D[id];// + map(angle_d, SERVO_MIN_D[id], SERVO_MAX_D[id], SERVO_MIN[id], SERVO_MAX[id]);
-       
-   pwm.setPWM(id, 0, pulseLength);
    
-   DEBUG("pwm.setPWM("); DEBUG(id); DEBUG(", 0, "); DEBUG(pulseLength); DEBUGln(")");
+   int ret_val = servoWritePulse( id, pulseLength );
+   
+   if (ret_val != 0 ) return ret_val;
    
    g_angle_d[id] = angle_d;
    
    return 0;
 }
 
-// Write to servo using pulse length, USE ONLY FOR TESTING
+// Write to servo using pulse length
 int servoWritePulse( int id, double pulseLength)
 {
   if (pulseLength < min(SERVO_MIN[id], SERVO_MAX[id])) { DEBUGln(min(SERVO_MIN[id], SERVO_MAX[id])); return -1; }
