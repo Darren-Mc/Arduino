@@ -157,6 +157,7 @@ int     i,j,count=0;
 int     ret_val, g_moveDelay = 50; // g_moveDelay is defined at global scope and is used to control speed of arm
 char    buf[MAX_BUFFER+1];
 double   number[4], current[4], actual[4], g_angle_d[4];
+int      g_pulse[5];
 double   g_radius_mm, g_height_mm, g_hand_d, g_sliderPos;
 double   g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d;
 
@@ -189,17 +190,17 @@ double ULN_SQ = ULNA*ULNA;
 /* FUNCTIONS */
 /*************/
 // Moves arm to specified servo angles
-int moveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double wriAngle_d )
+int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
 {  
    int ret_val;
    
-   DEBUG("moveArm("); DEBUG(basAngle_d); DEBUG(","); DEBUG(shlAngle_d); DEBUG(","); DEBUG(elbAngle_d); DEBUG(","); DEBUG(wriAngle_d); DEBUGln(")");
+   DEBUG("moveArm("); DEBUG(basPulse); DEBUG(","); DEBUG(shlPulse); DEBUG(","); DEBUG(elbPulse); DEBUG(","); DEBUG(wriPulse); DEBUGln(")");
    
    //Drive servos
-   if ( ( ret_val = servoWrite( BAS, basAngle_d ) ) != 0 ) return ret_val;
-   if ( ( ret_val = servoWrite( SHL, shlAngle_d ) ) != 0 ) return ret_val;
-   if ( ( ret_val = servoWrite( ELB, elbAngle_d ) ) != 0 ) return ret_val;
-   if ( ( ret_val = servoWrite( WRI, wriAngle_d ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWritePulse( BAS, basPulse ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWritePulse( SHL, shlPulse ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWritePulse( ELB, elbPulse ) ) != 0 ) return ret_val;
+   if ( ( ret_val = servoWritePulse( WRI, wriPulse ) ) != 0 ) return ret_val;
    
    delay(g_moveDelay);
    
@@ -212,36 +213,41 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
    DEBUG("slowMoveArm("); DEBUG(basAngle_d); DEBUG(","); DEBUG(shlAngle_d); DEBUG(","); DEBUG(elbAngle_d); DEBUG(","); DEBUG(wriAngle_d); DEBUGln(")");
    
    int ret_val;
-   double bDiff = abs( basAngle_d - g_angle_d[BAS] );
-   double sDiff = abs( shlAngle_d - g_angle_d[SHL] );
-   double eDiff = abs( elbAngle_d - g_angle_d[ELB] );
-   double wDiff = abs( wriAngle_d - g_angle_d[WRI] );
    
-   double steps = max( bDiff, sDiff );
+   int basPulse = degToPulse( BAS, basAngle_d );
+   int shlPulse = degToPulse( SHL, shlAngle_d );
+   int elbPulse = degToPulse( ELB, elbAngle_d );
+   int wriPulse = degToPulse( WRI, wriAngle_d );
+   
+   int bDiff = abs( basPulse - g_pulse[BAS] );
+   int sDiff = abs( shlPulse - g_pulse[SHL] );
+   int eDiff = abs( elbPulse - g_pulse[ELB] );
+   int wDiff = abs( wriPulse - g_pulse[WRI] );
+   
+   int steps = max( bDiff, sDiff );
    steps = max( steps, eDiff );
    steps = max( steps, wDiff );
-   steps = round(steps);
    DEBUG("Steps: "); DEBUGln(steps);
    
    if( steps < 2 )
    {
-      ret_val = moveArm( basAngle_d, shlAngle_d, elbAngle_d, wriAngle_d );
+      ret_val = moveArm( basPulse, shlPulse, elbPulse, wriPulse );
    }
    else
    {
-      double bStep = (basAngle_d - g_angle_d[BAS])/steps;
-      double sStep = (shlAngle_d - g_angle_d[SHL])/steps;
-      double eStep = (elbAngle_d - g_angle_d[ELB])/steps;
-      double wStep = (wriAngle_d - g_angle_d[WRI])/steps;
+      double bStep = (double)(basPulse - g_pulse[BAS])/steps;
+      double sStep = (double)(shlPulse - g_pulse[SHL])/steps;
+      double eStep = (double)(elbPulse - g_pulse[ELB])/steps;
+      double wStep = (double)(wriPulse - g_pulse[WRI])/steps;
       
-      double bMove = g_angle_d[BAS] + bStep;
-      double sMove = g_angle_d[SHL] + sStep;
-      double eMove = g_angle_d[ELB] + eStep;
-      double wMove = g_angle_d[WRI] + wStep;
+      double bMove = g_pulse[BAS] + bStep;
+      double sMove = g_pulse[SHL] + sStep;
+      double eMove = g_pulse[ELB] + eStep;
+      double wMove = g_pulse[WRI] + wStep;
       
       for(int i=0; i<steps; i++)
       {
-         if( ( ret_val = moveArm( bMove, sMove, eMove, wMove ) ) != 0 ) break;
+         if( ( ret_val = moveArm( round(bMove), round(sMove), round(eMove), round(wMove) ) ) != 0 ) break;
          bMove += bStep; sMove += sStep; eMove += eStep; wMove += wStep;
       }
    }
@@ -460,8 +466,7 @@ int servoWrite( int id, double angle_d )
    if ( id == 4 ) ret_val = servoWritePulse( id, (int) round(angle_d) );
    else
    {
-     int pulseLength = round(GRADIENT[id]*angle_d + OFFSET[id]);
-     ret_val = servoWritePulse( id, pulseLength );
+     ret_val = servoWritePulse( id, degToPulse( id, angle_d ) );
    }
    
    if (ret_val != 0 ) return ret_val;
@@ -474,10 +479,13 @@ int servoWrite( int id, double angle_d )
 // Write to servo using pulse length
 int servoWritePulse( int id, int pulseLength)
 {
+  if ( pulseLength == g_pulse[id] ) return 0;
   if ( pulseLength < SERVO_MIN[id] ) { DEBUG("Pulse too small ("); DEBUG(pulseLength); DEBUG("<"); DEBUG(SERVO_MIN[id]); DEBUGln(")"); return -1; }
   if ( pulseLength > SERVO_MAX[id] ) { DEBUG("Pulse too large ("); DEBUG(pulseLength); DEBUG(">"); DEBUG(SERVO_MAX[id]); DEBUGln(")"); return -2; }
   
   pwm.setPWM(id, 0, pulseLength);
+  
+  g_pulse[id] = pulseLength;
   
   DEBUG("pwm.setPWM("); DEBUG(id); DEBUG(", 0, "); DEBUG(pulseLength); DEBUGln(")");
   
@@ -487,13 +495,23 @@ int servoWritePulse( int id, int pulseLength)
 // Calculates the cylindrical coordinates of the wrist from the servo angles
 void calcPosition()
 {   
-   double s = g_angle_d[SHL], e = g_angle_d[ELB] - 180, w = g_angle_d[WRI] - 180;
+   double s = pulseToDeg( SHL, g_pulse[SHL] ), e = pulseToDeg( ELB, g_pulse[ELB] ) - 180, w = pulseToDeg( WRI, g_pulse[WRI] ) - 180;
    
    g_radius_mm = HUMERUS*cos( radians(s) ) + ULNA*cos( radians(s + e) ) + HAND*cos( radians(s + e + w) );
    
    g_height_mm = BASE_HEIGHT + HUMERUS*sin( radians(s) ) + ULNA*sin( radians(s + e) ) + HAND*sin( radians(s + e + w) );
    
    DEBUG("g_radius_mm: "); DEBUG(g_radius_mm); DEBUG(", g_height_mm: "); DEBUGln(g_height_mm);
+}
+
+int degToPulse ( int id, double angle_d )
+{
+  return (int) round(GRADIENT[id]*angle_d + OFFSET[id]);
+}
+
+double pulseToDeg ( int id, int pulseLength )
+{
+  return ((double)pulseLength - OFFSET[id])/GRADIENT[id];
 }
 
 /*********/
@@ -520,9 +538,10 @@ void setup()
    servoWrite( ELB, ELB_PARK );
    servoWrite( WRI, WRI_PARK );
    servoWrite( GRI, GRI_OPEN );
-   DEBUG("Robot parked: {"); DEBUG(g_angle_d[BAS]); DEBUG(","); DEBUG(g_angle_d[SHL]); DEBUG(","); DEBUG(g_angle_d[ELB]); DEBUG(","); DEBUG(g_angle_d[WRI]); DEBUGln(",delay}");
+   //DEBUG("Robot parked: ("); DEBUG(g_pulse[BAS]); DEBUG(","); DEBUG(g_pulse[SHL]); DEBUG(","); DEBUG(g_pulse[ELB]); DEBUG(","); DEBUG(g_pulse[WRI]); DEBUG(","); DEBUG(g_pulse[GRI]); DEBUGln(")");
+   DEBUG("Robot parked: {"); DEBUG(pulseToDeg( BAS, g_pulse[BAS] )); DEBUG(","); DEBUG(pulseToDeg( SHL, g_pulse[SHL] )); DEBUG(","); DEBUG(pulseToDeg( ELB, g_pulse[ELB] )); DEBUG(","); DEBUG(pulseToDeg( WRI, g_pulse[WRI] )); DEBUGln(",delay}");
    calcPosition();
-   DEBUG("Robot parked: <"); DEBUG(g_radius_mm); DEBUG(","); DEBUG(g_height_mm); DEBUG(","); DEBUG(g_angle_d[BAS]); DEBUG(","); DEBUG(g_hand_d); DEBUGln(",delay>");
+   DEBUG("Robot parked: <"); DEBUG(g_radius_mm); DEBUG(","); DEBUG(g_height_mm); DEBUG(","); DEBUG(pulseToDeg( BAS, g_pulse[BAS] )); DEBUG(","); DEBUG(g_hand_d); DEBUGln(",delay>");
    DEBUGln("Enter r to return robot to park position\n");
    //slide(LEFT,MAX_STEPS);
     
