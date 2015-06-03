@@ -150,7 +150,7 @@ enum ServoID
 #define BAS_PARK 90
 #define SHL_PARK 90
 #define ELB_PARK 180
-#define WRI_PARK 90
+#define WRI_PARK 180
 
 
 /*****************/
@@ -624,7 +624,7 @@ void loop()
             buf[i] = '\0';
             number[0] = atof(buf);
             g_moveDelay = 50;
-            Serial.println(servoWrite(BAS, number[0]));
+            Serial.println(servoWritePulse(WRI, number[0]));
             //Serial.println(slowMoveArm(number[0],g_angle_d[SHL],g_angle_d[ELB],g_angle_d[WRI]));
             break;
             
