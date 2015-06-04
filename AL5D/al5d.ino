@@ -18,9 +18,9 @@
 /*********************************/
 /* General system debugging code */
 /*********************************/
-#define DEBUG // Uncomment line to add debugging code
+//#define DEBUG // Uncomment line to add debugging code
 
-#ifdef DEBUG
+#ifdef DEBUG      
 #  define DEBUG(x) (Serial.print(x))
 #  define DEBUGln(x) (Serial.println(x))
 #else
@@ -229,14 +229,17 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
    steps = max( steps, wDiff );
    DEBUG("Steps: "); DEBUGln(steps);
    
-   int delayus = round(((double)1000*g_moveDelay)/steps);
+   if ( steps == 0 ) return 0;
+   
+   long int delayus = round(((double)1000*g_moveDelay)/steps);
    
    DEBUG("Delayus: "); DEBUGln(delayus);
    
    if( steps < 2 )
    {
       ret_val = moveArm( basPulse, shlPulse, elbPulse, wriPulse );
-      delayMicroseconds(delayus);
+      if (delayus > 1000) delay(delayus/1000);
+      else delayMicroseconds(delayus);
    }
    else
    {
@@ -254,7 +257,8 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
       {
          if( ( ret_val = moveArm( round(bMove), round(sMove), round(eMove), round(wMove) ) ) != 0 ) break;
          bMove += bStep; sMove += sStep; eMove += eStep; wMove += wStep;
-         delayMicroseconds(delayus);
+         if (delayus > 1000) delay(delayus/1000);
+         else delayMicroseconds(delayus);
       }
    }
 
@@ -266,7 +270,7 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
 int moveArmCoord( double radius_mm, double height_mm, double basAngle_d, double handAngle_d )
 {
    if ( radius_mm < 0 ) return -4;
-   DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUGln(")");
+   DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUG(","); DEBUG(handAngle_d); DEBUGln(")");
    /* Lengths from shoulder to wrist in cylindrical coordinates */
    double s2w_h = height_mm - BASE_HEIGHT - HAND*sin( radians( handAngle_d) );
    double s2w_r = radius_mm - HAND*cos( radians( handAngle_d) );
@@ -282,7 +286,7 @@ int moveArmCoord( double radius_mm, double height_mm, double basAngle_d, double 
    /* elbow angle */
    double elbAngle_r = acos(( HUM_SQ + ULN_SQ - s2w ) / ( 2 * HUMERUS * ULNA )); // Angle between humerus and ulna
    /* wrist angle */
-   double wriAngle_d = 360 - degrees(shlAngle_r + elbAngle_r);
+   double wriAngle_d = 360 + handAngle_d - degrees(shlAngle_r + elbAngle_r);
    
    return ( s2w_sqrt > HUMERUS + ULNA ) ? -3 : slowMoveArm( basAngle_d, degrees(shlAngle_r), degrees(elbAngle_r), wriAngle_d ); // Return -3 if no solution exists (out of range)
 }
@@ -504,9 +508,11 @@ void calcPosition()
 {   
    double s = pulseToDeg( SHL, g_pulse[SHL] ), e = pulseToDeg( ELB, g_pulse[ELB] ) - 180, w = pulseToDeg( WRI, g_pulse[WRI] ) - 180;
    
-   g_radius_mm = HUMERUS*cos( radians(s) ) + ULNA*cos( radians(s + e) ) + HAND*cos( radians(s + e + w) );
+   g_hand_d = s + e + w;
    
-   g_height_mm = BASE_HEIGHT + HUMERUS*sin( radians(s) ) + ULNA*sin( radians(s + e) ) + HAND*sin( radians(s + e + w) );
+   g_radius_mm = HUMERUS*cos( radians(s) ) + ULNA*cos( radians(s + e) ) + HAND*cos( radians(g_hand_d) );
+   
+   g_height_mm = BASE_HEIGHT + HUMERUS*sin( radians(s) ) + ULNA*sin( radians(s + e) ) + HAND*sin( radians(g_hand_d) );
    
    DEBUG("g_radius_mm: "); DEBUG(g_radius_mm); DEBUG(", g_height_mm: "); DEBUGln(g_height_mm);
 }
@@ -581,7 +587,7 @@ void loop()
          case 'p':
             servoWrite(GRI,GRI_MICROPLATE); Serial.println("Gripped Microplate"); break;
          case 'r':
-            g_moveDelay = 20;
+            g_moveDelay = 1000;
             if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK) ) == 0 ) Serial.println("Arm returned to park position");
             else Serial.println(ret_val);
             break;
@@ -709,6 +715,8 @@ void loop()
             if( ret_val == 0 )
             {
                Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.print(number[2]); Serial.print(","); Serial.println(number[3]);
+               calcPosition();
+               Serial.print("<"); Serial.print(g_radius_mm); Serial.print(","); Serial.print(g_height_mm); Serial.print(","); Serial.print(pulseToDeg( BAS, g_pulse[BAS] )); Serial.print(","); Serial.print(g_hand_d); Serial.println(",delay>");
             }
             else
             {
