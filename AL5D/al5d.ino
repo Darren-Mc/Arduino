@@ -202,7 +202,7 @@ int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
    if ( ( ret_val = servoWritePulse( ELB, elbPulse ) ) != 0 ) return ret_val;
    if ( ( ret_val = servoWritePulse( WRI, wriPulse ) ) != 0 ) return ret_val;
    
-   delay(g_moveDelay);
+   //delay(g_moveDelay);
    
    return ret_val;
 }
@@ -229,9 +229,14 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
    steps = max( steps, wDiff );
    DEBUG("Steps: "); DEBUGln(steps);
    
+   int delayus = round(((double)1000*g_moveDelay)/steps);
+   
+   DEBUG("Delayus: "); DEBUGln(delayus);
+   
    if( steps < 2 )
    {
       ret_val = moveArm( basPulse, shlPulse, elbPulse, wriPulse );
+      delayMicroseconds(delayus);
    }
    else
    {
@@ -249,6 +254,7 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
       {
          if( ( ret_val = moveArm( round(bMove), round(sMove), round(eMove), round(wMove) ) ) != 0 ) break;
          bMove += bStep; sMove += sStep; eMove += eStep; wMove += wStep;
+         delayMicroseconds(delayus);
       }
    }
 
@@ -259,6 +265,7 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
 // (r = radius, h = height, b = azimuth = base servo angle, handAngle = angle of hand from horizontal)
 int moveArmCoord( double radius_mm, double height_mm, double basAngle_d, double handAngle_d )
 {
+   if ( radius_mm < 0 ) return -4;
    DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUGln(")");
    /* Lengths from shoulder to wrist in cylindrical coordinates */
    double s2w_h = height_mm - BASE_HEIGHT - HAND*sin( radians( handAngle_d) );
@@ -579,7 +586,7 @@ void loop()
             else Serial.println(ret_val);
             break;
          case 'R':
-            moveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK); Serial.println("ARM PARKED!"); break;
+            moveArm(degToPulse(BAS, BAS_PARK), degToPulse(SHL, SHL_PARK), degToPulse(ELB, ELB_PARK), degToPulse(WRI, WRI_PARK)); Serial.println("ARM PARKED!"); break;
             
          case 'l': //start of setting light PWM value
             i=0; buf[i] = Serial.read(); delay(1);
