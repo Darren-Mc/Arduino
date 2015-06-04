@@ -139,6 +139,7 @@ enum ServoID
 #define ELB_PARK 180
 #define WRI_PARK 90
 
+#define DELAY_MAX 25
 
 /*****************/
 /* SERVO OBJECTS */
@@ -184,7 +185,9 @@ double ULN_SQ = ULNA*ULNA;
 // -1: Input angle below servo range
 // -2: Input angle above servo range
 // -3: Destination is physically out of reach
-// -4: One or more servos have stalled
+// -4: Destination radius is negative
+// -5: Move delay is too small
+// -101: One or more servos have stalled
 
 /*************/
 /* FUNCTIONS */
@@ -208,9 +211,11 @@ int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
 }
 
 // Moves the arm slowly to a new position, depending on the specified delay
-int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double wriAngle_d )
+int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double wriAngle_d, long int delay_, bool scaleDelay )
 { 
    DEBUG("slowMoveArm("); DEBUG(basAngle_d); DEBUG(","); DEBUG(shlAngle_d); DEBUG(","); DEBUG(elbAngle_d); DEBUG(","); DEBUG(wriAngle_d); DEBUGln(")");
+   
+   if ( scaleDelay && ( delay_ > DELAY_MAX || delay_ < 0 ) ) return -5;
    
    int ret_val;
    
@@ -231,15 +236,15 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
    
    if ( steps == 0 ) return 0;
    
-   long int delayus = round(((double)1000*g_moveDelay)/steps);
-   
-   DEBUG("Delayus: "); DEBUGln(delayus);
+   long int delay_us = round((double)delay_/steps);
+   Serial.print("Delay_us: "); Serial.println(delay_us);
    
    if( steps < 2 )
    {
       ret_val = moveArm( basPulse, shlPulse, elbPulse, wriPulse );
-      if (delayus > 1000) delay(delayus/1000);
-      else delayMicroseconds(delayus);
+      
+      if (delay_us > 1000) delay(delay_us/1000);
+      else delayMicroseconds(delay_us);
    }
    else
    {
@@ -257,8 +262,19 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
       {
          if( ( ret_val = moveArm( round(bMove), round(sMove), round(eMove), round(wMove) ) ) != 0 ) break;
          bMove += bStep; sMove += sStep; eMove += eStep; wMove += wStep;
-         if (delayus > 1000) delay(delayus/1000);
-         else delayMicroseconds(delayus);
+         
+         if (scaleDelay)
+         {
+           int delay_ms = DELAY_MAX - round((DELAY_MAX-delay_)*sin((double)i*PI/(steps-1)));
+           delay(delay_ms);
+           Serial.println(delay_ms);
+         }
+         else
+         {
+           if (delay_us > 1000) delay(delay_us/1000);
+           else delayMicroseconds(delay_us);
+         }
+         
       }
    }
 
@@ -267,7 +283,7 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
 
 // Arm positioning routine utilizing inverse kinematics in cylindrical coordinates
 // (r = radius, h = height, b = azimuth = base servo angle, handAngle = angle of hand from horizontal)
-int moveArmCoord( double radius_mm, double height_mm, double basAngle_d, double handAngle_d )
+int moveArmCoord( double radius_mm, double height_mm, double basAngle_d, double handAngle_d, int delay_ms )
 {
    if ( radius_mm < 0 ) return -4;
    DEBUG("moveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUG(","); DEBUG(handAngle_d); DEBUGln(")");
@@ -288,14 +304,16 @@ int moveArmCoord( double radius_mm, double height_mm, double basAngle_d, double 
    /* wrist angle */
    double wriAngle_d = 360 + handAngle_d - degrees(shlAngle_r + elbAngle_r);
    
-   return ( s2w_sqrt > HUMERUS + ULNA ) ? -3 : slowMoveArm( basAngle_d, degrees(shlAngle_r), degrees(elbAngle_r), wriAngle_d ); // Return -3 if no solution exists (out of range)
+   return ( s2w_sqrt > HUMERUS + ULNA ) ? -3 : slowMoveArm( basAngle_d, degrees(shlAngle_r), degrees(elbAngle_r), wriAngle_d, delay_ms, 0 ); // Return -3 if no solution exists (out of range)
 }
 
 // Moves the arm slowly to a new position, depending on the specified delay using cylindrical coordinates
 // (r = radius, h = height, b = azimuth = base servo angle)
-int slowMoveArmCoord( double radius_mm, double height_mm, double basAngle_d, double handAngle_d )
+int slowMoveArmCoord( double radius_mm, double height_mm, double basAngle_d, double handAngle_d, int delay_min )
 {
    DEBUG("slowMoveArmCoord("); DEBUG(radius_mm); DEBUG(","); DEBUG(height_mm); DEBUG(","); DEBUG(basAngle_d); DEBUG(","); DEBUG(handAngle_d); DEBUGln(")");
+   
+   if ( delay_min > DELAY_MAX || delay_min < 0 ) return -5;
    
    calcPosition();
    
@@ -324,7 +342,9 @@ int slowMoveArmCoord( double radius_mm, double height_mm, double basAngle_d, dou
    
    for(int i=0; i<steps; i++)
    {
-     if ( ( ret_val = moveArmCoord( rMove, hMove, bMove, dMove ) )  != 0 ) return ret_val;
+     long int delay_us = round(1000*(DELAY_MAX - (DELAY_MAX-delay_min)*sin((double)i*PI/(steps-1))));
+     Serial.println(delay_us);
+     if ( ( ret_val = moveArmCoord( rMove, hMove, bMove, dMove, delay_us ) )  != 0 ) return ret_val;
      rMove += rStep; hMove += hStep; bMove += bStep; dMove += dStep;
    }
    
@@ -334,7 +354,7 @@ int slowMoveArmCoord( double radius_mm, double height_mm, double basAngle_d, dou
    
    //delay(100); // Wait for arm to stop moving
    
-   //if ( checkPosition() != 0 ) return -4; // Stall detection
+   //if ( checkPosition() != 0 ) return -101; // Stall detection
 
    return 0;
 }
@@ -438,7 +458,7 @@ double levelGripper()
       if ( stall_count == MAX_COUNT )
       {
          servoWrite( WRI, servo_angle_old);
-         return -4;
+         return -101;
       }
    }
    return 0;
@@ -587,12 +607,15 @@ void loop()
          case 'p':
             servoWrite(GRI,GRI_MICROPLATE); Serial.println("Gripped Microplate"); break;
          case 'r':
-            g_moveDelay = 1000;
-            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK) ) == 0 ) Serial.println("Arm returned to park position");
+            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK,5,1) ) == 0 ) Serial.println("Arm returned to park position");
             else Serial.println(ret_val);
             break;
          case 'R':
             moveArm(degToPulse(BAS, BAS_PARK), degToPulse(SHL, SHL_PARK), degToPulse(ELB, ELB_PARK), degToPulse(WRI, WRI_PARK)); Serial.println("ARM PARKED!"); break;
+         case 't':
+            if( ( ret_val = slowMoveArm(90,90,90,90,5,1) ) == 0 ) Serial.println("Arm returned to park position");
+            else Serial.println(ret_val);
+            break;
             
          case 'l': //start of setting light PWM value
             i=0; buf[i] = Serial.read(); delay(1);
@@ -671,8 +694,8 @@ void loop()
                buf[i] = Serial.read(); delay(1);
             }
             buf[i] = '\0';
-            g_moveDelay = atof( buf ); // g_moveDelay
-            ret_val = slowMoveArmCoord( number[0], number[1], number[2], number[3] );
+            number[4] = atof( buf ); // g_moveDelay
+            ret_val = slowMoveArmCoord( number[0], number[1], number[2], number[3], number[4] );
             if( ret_val == 0 )
             {
                Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.print(number[2]); Serial.print(","); Serial.println(number[3]);
@@ -680,9 +703,9 @@ void loop()
             else
             {
                Serial.println(ret_val);
-               if ( ret_val == -4 ) // If the arm did not reach the destination, return to previous position
+               if ( ret_val == -101 ) // If the arm did not reach the destination, return to previous position
                {
-                  slowMoveArmCoord( g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d );
+                  slowMoveArmCoord( g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d, DELAY_MAX );
                }
             }
             break;
@@ -710,8 +733,8 @@ void loop()
                buf[i] = Serial.read(); delay(1);
             }
             buf[i] = '\0';
-            g_moveDelay = atof( buf ); // g_moveDelay
-            ret_val = slowMoveArm( number[0], number[1], number[2], number[3] );
+            number[4] = atof( buf ); // g_moveDelay
+            ret_val = slowMoveArm( number[0], number[1], number[2], number[3], number[4], 1 );
             if( ret_val == 0 )
             {
                Serial.print(number[0]); Serial.print(","); Serial.print(number[1]); Serial.print(","); Serial.print(number[2]); Serial.print(","); Serial.println(number[3]);
