@@ -237,14 +237,12 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
    if ( steps == 0 ) return 0;
    
    long int delay_us = round((double)delay_/steps);
-   Serial.print("Delay_us: "); Serial.println(delay_us);
+   //Serial.print("Delay_us: "); Serial.println(delay_us);
    
    if( steps < 2 )
    {
       ret_val = moveArm( basPulse, shlPulse, elbPulse, wriPulse );
-      
-      if (delay_us > 1000) delay(delay_us/1000);
-      else delayMicroseconds(delay_us);
+      delayFunc(delay_us);
    }
    else
    {
@@ -265,16 +263,10 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
          
          if (scaleDelay)
          {
-           int delay_ms = DELAY_MAX - round((DELAY_MAX-delay_)*sin((double)i*PI/(steps-1)));
-           delay(delay_ms);
-           Serial.println(delay_ms);
-         }
-         else
-         {
-           if (delay_us > 1000) delay(delay_us/1000);
-           else delayMicroseconds(delay_us);
+           delay_us = round(1000*(DELAY_MAX - (DELAY_MAX-delay_)*sin(0.5*PI*sin((double)i*PI/(steps-1)))));
          }
          
+         delayFunc(delay_us);
       }
    }
 
@@ -342,8 +334,8 @@ int slowMoveArmCoord( double radius_mm, double height_mm, double basAngle_d, dou
    
    for(int i=0; i<steps; i++)
    {
-     long int delay_us = round(1000*(DELAY_MAX - (DELAY_MAX-delay_min)*sin((double)i*PI/(steps-1))));
-     Serial.println(delay_us);
+     long int delay_us = round(1000*(DELAY_MAX - (DELAY_MAX-delay_min)*sin(0.5*PI*sin((double)i*PI/(steps-1)))));
+     //Serial.println(delay_us);
      if ( ( ret_val = moveArmCoord( rMove, hMove, bMove, dMove, delay_us ) )  != 0 ) return ret_val;
      rMove += rStep; hMove += hStep; bMove += bStep; dMove += dStep;
    }
@@ -547,13 +539,28 @@ double pulseToDeg ( int id, int pulseLength )
   return ((double)pulseLength - OFFSET[id])/GRADIENT[id];
 }
 
+void delayFunc ( long int delay_ )
+{
+  long int start = micros();
+  int delay_ms = delay_/1000;
+  int delay_us = delay_%1000;
+  if ( delay_ms > 0 ) delay(delay_ms);
+  if ( delay_us > 0 ) delayMicroseconds(delay_us);
+  long int fin = micros();
+  /*Serial.print(delay_ms);
+  Serial.print("+");
+  Serial.print(delay_us);
+  Serial.print("=");
+  Serial.println(fin-start);*/
+}
+
 /*********/
 /* SETUP */
 /*********/
 void setup()
 {
    Serial.begin(57600);
-   DEBUGln("Serial connection started\n");  
+   Serial.println("Serial connection started\n");  
    
    pinMode(STEP_PIN, OUTPUT);
    pinMode(DIR_PIN, OUTPUT);
@@ -572,10 +579,10 @@ void setup()
    servoWrite( WRI, WRI_PARK );
    servoWrite( GRI, GRI_OPEN );
    //DEBUG("Robot parked: ("); DEBUG(g_pulse[BAS]); DEBUG(","); DEBUG(g_pulse[SHL]); DEBUG(","); DEBUG(g_pulse[ELB]); DEBUG(","); DEBUG(g_pulse[WRI]); DEBUG(","); DEBUG(g_pulse[GRI]); DEBUGln(")");
-   DEBUG("Robot parked: {"); DEBUG(pulseToDeg( BAS, g_pulse[BAS] )); DEBUG(","); DEBUG(pulseToDeg( SHL, g_pulse[SHL] )); DEBUG(","); DEBUG(pulseToDeg( ELB, g_pulse[ELB] )); DEBUG(","); DEBUG(pulseToDeg( WRI, g_pulse[WRI] )); DEBUGln(",delay}");
+   Serial.print("Robot parked: {"); Serial.print(pulseToDeg( BAS, g_pulse[BAS] )); Serial.print(","); Serial.print(pulseToDeg( SHL, g_pulse[SHL] )); Serial.print(","); Serial.print(pulseToDeg( ELB, g_pulse[ELB] )); Serial.print(","); Serial.print(pulseToDeg( WRI, g_pulse[WRI] )); Serial.println(",delay}");
    calcPosition();
-   DEBUG("Robot parked: <"); DEBUG(g_radius_mm); DEBUG(","); DEBUG(g_height_mm); DEBUG(","); DEBUG(pulseToDeg( BAS, g_pulse[BAS] )); DEBUG(","); DEBUG(g_hand_d); DEBUGln(",delay>");
-   DEBUGln("Enter r to return robot to park position\n");
+   Serial.print("Robot parked: <"); Serial.print(g_radius_mm); Serial.print(","); Serial.print(g_height_mm); Serial.print(","); Serial.print(pulseToDeg( BAS, g_pulse[BAS] )); Serial.print(","); Serial.print(g_hand_d); Serial.println(",delay>");
+   Serial.println("Enter r to return robot to park position\n");
    //slide(LEFT,MAX_STEPS);
     
    DEBUGln("Base Servo = 0");
@@ -607,13 +614,15 @@ void loop()
          case 'p':
             servoWrite(GRI,GRI_MICROPLATE); Serial.println("Gripped Microplate"); break;
          case 'r':
-            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK,5,1) ) == 0 ) Serial.println("Arm returned to park position");
+            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK,5,1) ) == 0 ) { Serial.print("("); Serial.print(BAS_PARK); Serial.print(","); Serial.print(SHL_PARK); Serial.print(","); Serial.print(ELB_PARK), Serial.print(","); Serial.print(WRI_PARK); Serial.println(")"); }
             else Serial.println(ret_val);
             break;
          case 'R':
-            moveArm(degToPulse(BAS, BAS_PARK), degToPulse(SHL, SHL_PARK), degToPulse(ELB, ELB_PARK), degToPulse(WRI, WRI_PARK)); Serial.println("ARM PARKED!"); break;
+            if( ( ret_val = moveArm(degToPulse(BAS, BAS_PARK), degToPulse(SHL, SHL_PARK), degToPulse(ELB, ELB_PARK), degToPulse(WRI, WRI_PARK)) ) == 0 ) { Serial.print("("); Serial.print(BAS_PARK); Serial.print(","); Serial.print(SHL_PARK); Serial.print(","); Serial.print(ELB_PARK), Serial.print(","); Serial.print(WRI_PARK); Serial.println(")!"); }
+            else Serial.println(ret_val);
+            break;
          case 't':
-            if( ( ret_val = slowMoveArm(90,90,90,90,5,1) ) == 0 ) Serial.println("Arm returned to park position");
+            if( ( ret_val = slowMoveArm(90,90,90,90,5,1) ) == 0 ) Serial.println("(90,90,90,90)");
             else Serial.println(ret_val);
             break;
             
