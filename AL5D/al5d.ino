@@ -82,7 +82,7 @@
 #define BAS_OFFSET 606
 #define SHL_OFFSET 186.836
 #define ELB_OFFSET 579.134
-#define WRI_OFFSET 615.516
+#define WRI_OFFSET 643.501
 
 // Analog references for the centre voltage from accelerometers
 #define BAS_R_REF 0
@@ -676,7 +676,7 @@ void loop()
             buf[i] = '\0';
             number[0] = atof(buf);
             g_moveDelay = 50;
-            Serial.println(servoWrite(ELB, number[0]));
+            Serial.println(servoWritePulse(WRI, number[0]));
             //Serial.println(slowMoveArm(number[0],g_angle_d[SHL],g_angle_d[ELB],g_angle_d[WRI]));
             break;
             
