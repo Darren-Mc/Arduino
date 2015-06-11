@@ -127,9 +127,9 @@ LSM9DS0 dof(MODE_SPI, LSM9DS0_CSG, LSM9DS0_CSXM);
 ///////////////////////////////
 // Interrupt Pin Definitions //
 ///////////////////////////////
-const byte INT1XM = 3; // INT1XM tells us when accel data is ready
-const byte INT2XM = 2; // INT2XM tells us when mag data is ready
-const byte DRDYG  = 4; // DRDYG  tells us when gyro data is ready
+const byte DRDYG  = 11; // DRDYG  tells us when gyro data is ready
+const byte INT1XM = 12; // INT1XM tells us when accel data is ready
+const byte INT2XM = 13; // INT2XM tells us when mag data is ready
 
 // global constants for 9 DoF fusion and AHRS (Attitude and Heading Reference System)
 #define GyroMeasError PI * (40.0f / 180.0f)       // gyroscope measurement error in rads/s (shown as 3 deg/s)
@@ -168,28 +168,7 @@ void setup()
   pinMode(INT1XM, INPUT);
   pinMode(INT2XM, INPUT);
   pinMode(DRDYG,  INPUT);
-
-  /*display.begin(); // Initialize the display
-  display.setContrast(58); // Set the contrast
-  display.setRotation(0); //  0 or 2) width = width, 1 or 3) width = height, swapped etc.
-  
-// Start device display with ID of sensor
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);  display.print("LSM9DS0");
-  display.setTextSize(1);
-  display.setCursor(0, 20); display.print("9 DOF sensor");
-  display.setCursor(5, 30); display.print("data fusion");
-  display.setCursor(20, 40); display.print("AHRS");
-  display.display();
-  delay(2000);
-
-// Set up for data display
-  display.setTextSize(1); // Set text size to normal, 2 is twice normal etc.
-  display.setTextColor(BLACK); // Set pixel color; 1 on the monochrome screen
-  display.clearDisplay();   // clears the screen and buffer
-  display.display();*/
-            
+        
   // begin() returns a 16-bit value which includes both the gyro 
   // and accelerometers WHO_AM_I response. You can check this to
   // make sure communication was successful.
@@ -199,11 +178,6 @@ void setup()
   Serial.println(status, HEX);
   Serial.println("Should be 0x49D4");
   Serial.println();
-  /*display.setCursor(0,0); display.print("I AM");
-  display.setCursor(0,10); display.print(status, HEX);
-  display.setCursor(0,30); display.print("I Should Be");
-  display.setCursor(0,40); display.print(0x49D4, HEX); 
-  display.display();*/
   delay(2000); 
   
  // Set data output ranges; choose lowest ranges for maximum resolution
@@ -234,6 +208,8 @@ void setup()
  // Use the FIFO mode to average accelerometer and gyro readings to calculate the biases, which can then be removed from
  // all subsequent measurements.
     dof.calLSM9DS0(gbias, abias);
+    Serial.print(gbias[0]); Serial.print("\t"); Serial.print(gbias[1]); Serial.print("\t"); Serial.println(gbias[2]);
+    Serial.print(abias[0]); Serial.print("\t"); Serial.print(abias[1]); Serial.print("\t"); Serial.println(abias[2]);
 }
 
 void loop()
@@ -273,11 +249,11 @@ void loop()
 
     // Serial print and/or display at 0.5 s rate independent of data rates
     delt_t = millis() - count;
-    if (delt_t > 500) { // update LCD once per half-second independent of read rate
+    if (delt_t > 10) { // update LCD once per half-second independent of read rate
  
   // Print the heading and orientation for fun!
-    printHeading(mx, my);
-    printOrientation(ax, ay, az);
+    //printHeading(mx, my);
+    //printOrientation(ax, ay, az);
 
   // Define output variables from updated quaternion---these are Tait-Bryan angles, commonly used in aircraft orientation.
   // In this coordinate system, the positive z-axis is down toward Earth. 
@@ -294,10 +270,10 @@ void loop()
     roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
     pitch *= 180.0f / PI;
     yaw   *= 180.0f / PI; 
-    yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
+    //yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
     roll  *= 180.0f / PI;
 
-    Serial.print("ax = "); Serial.print((int)1000*ax);  
+    /*Serial.print("ax = "); Serial.print((int)1000*ax);  
     Serial.print(" ay = "); Serial.print((int)1000*ay); 
     Serial.print(" az = "); Serial.print((int)1000*az); Serial.println(" mg");
     Serial.print("gx = "); Serial.print( gx, 2); 
@@ -305,47 +281,23 @@ void loop()
     Serial.print(" gz = "); Serial.print( gz, 2); Serial.println(" deg/s");
     Serial.print("mx = "); Serial.print( (int)1000*mx); 
     Serial.print(" my = "); Serial.print( (int)1000*my); 
-    Serial.print(" mz = "); Serial.print( (int)1000*mz); Serial.println(" mG");
+    Serial.print(" mz = "); Serial.print( (int)1000*mz); Serial.println(" mG");*/
     
-    Serial.print("temperature = "); Serial.println(temperature, 2);
+    //Serial.print("temperature = "); Serial.println(temperature, 2);
     
-    Serial.print("Yaw, Pitch, Roll: ");
+    //Serial.print("Yaw, Pitch, Roll: ");
     Serial.print(yaw, 2);
-    Serial.print(", ");
+    Serial.print("\t");
     Serial.print(pitch, 2);
-    Serial.print(", ");
+    Serial.print("\t");
     Serial.println(roll, 2);
     
-    Serial.print("q0 = "); Serial.print(q[0]);
+    /*Serial.print("q0 = "); Serial.print(q[0]);
     Serial.print(" qx = "); Serial.print(q[1]); 
     Serial.print(" qy = "); Serial.print(q[2]); 
-    Serial.print(" qz = "); Serial.println(q[3]); 
+    Serial.print(" qz = "); Serial.println(q[3]);*/ 
     
-    Serial.print("filter rate = "); Serial.println(1.0f/deltat, 1);
-    /*display.clearDisplay();
-     
- 
-    display.setCursor(0, 0); display.print(" x   y   z  ");
-
-    display.setCursor(0,  8); display.print((int)(1000*ax)); 
-    display.setCursor(24, 8); display.print((int)(1000*ay)); 
-    display.setCursor(48, 8); display.print((int)(1000*az)); 
-    display.setCursor(72, 8); display.print("mg");
-    
-    display.setCursor(0,  16); display.print((int)(gx)); 
-    display.setCursor(24, 16); display.print((int)(gy)); 
-    display.setCursor(48, 16); display.print((int)(gz)); 
-    display.setCursor(66, 16); display.print("o/s");    
-
-    display.setCursor(0,  24); display.print((int)(1000*mx)); 
-    display.setCursor(24, 24); display.print((int)(1000*my)); 
-    display.setCursor(48, 24); display.print((int)(1000*mz)); 
-    display.setCursor(72, 24); display.print("mG");    
- 
-    display.setCursor(0,  32); display.print((int)(yaw)); 
-    display.setCursor(24, 32); display.print((int)(pitch)); 
-    display.setCursor(48, 32); display.print((int)(roll)); 
-    display.setCursor(66, 32); display.print("ypr");  
+    //Serial.print("filter rate = "); Serial.println(1.0f/deltat, 1);
   
     // With ODR settings of 400 Hz, 380 Hz, and 25 Hz for the accelerometer, gyro, and magnetometer, respectively,
     // the filter is updating at a ~125 Hz rate using the Madgwick scheme and ~165 Hz using the Mahony scheme 
@@ -365,9 +317,7 @@ void loop()
     // stabilization control of a fast-moving robot or quadcopter. Compare to the update rate of 200 Hz
     // produced by the on-board Digital Motion Processor of Invensense's MPU6050 6 DoF and MPU9150 9DoF sensors.
     // The 3.3 V 8 MHz Pro Mini is doing pretty well!
-    display.setCursor(0, 40); display.print("rt: "); display.print((1/deltat)); display.print(" Hz"); 
-
-    display.display();*/
+    
     count = millis();
     }
 }
