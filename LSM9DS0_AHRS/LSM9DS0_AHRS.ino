@@ -93,6 +93,7 @@ Distributed as-is; no warranty is given.
 //#include "Arduino.h"
 //#include <Adafruit_GFX.h>
 //#include <Adafruit_PCD8544.h>
+#include <Average.h>
 
 
 // Using NOKIA 5110 monochrome 84 x 48 pixel display
@@ -160,6 +161,10 @@ float q[4] = {1.0f, 0.0f, 0.0f, 0.0f};    // vector to hold quaternion
 float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for Mahony method
 float temperature;
 
+Average<double> X(10);
+Average<double> Y(10);
+Average<double> Z(10);
+
 void setup()
 {
   Serial.begin(38400); // Start serial at 38400 bps
@@ -208,8 +213,6 @@ void setup()
  // Use the FIFO mode to average accelerometer and gyro readings to calculate the biases, which can then be removed from
  // all subsequent measurements.
     dof.calLSM9DS0(gbias, abias);
-    Serial.print(gbias[0]); Serial.print("\t"); Serial.print(gbias[1]); Serial.print("\t"); Serial.println(gbias[2]);
-    Serial.print(abias[0]); Serial.print("\t"); Serial.print(abias[1]); Serial.print("\t"); Serial.println(abias[2]);
 }
 
 void loop()
@@ -226,6 +229,7 @@ void loop()
     ax = dof.calcAccel(dof.ax) - abias[0];   // Convert to g's, remove accelerometer biases
     ay = dof.calcAccel(dof.ay) - abias[1];
     az = dof.calcAccel(dof.az) - abias[2];
+    X.push(dof.ax); Y.push(dof.ay); Z.push(dof.az);
   }
   
   if(digitalRead(INT2XM)) {  // When new magnetometer data is ready
@@ -254,6 +258,7 @@ void loop()
   // Print the heading and orientation for fun!
     //printHeading(mx, my);
     //printOrientation(ax, ay, az);
+    printOrientation(dof.calcAccel(X.mean()) - abias[0], dof.calcAccel(Y.mean()) - abias[1], dof.calcAccel(Z.mean()) - abias[2]);
 
   // Define output variables from updated quaternion---these are Tait-Bryan angles, commonly used in aircraft orientation.
   // In this coordinate system, the positive z-axis is down toward Earth. 
@@ -286,11 +291,11 @@ void loop()
     //Serial.print("temperature = "); Serial.println(temperature, 2);
     
     //Serial.print("Yaw, Pitch, Roll: ");
-    Serial.print(yaw, 2);
+    //Serial.print(yaw, 2);
     Serial.print("\t");
-    Serial.print(pitch, 2);
-    Serial.print("\t");
-    Serial.println(roll, 2);
+    Serial.println(pitch, 2);
+    //Serial.print("\t");
+    //Serial.println(roll, 2);
     
     /*Serial.print("q0 = "); Serial.print(q[0]);
     Serial.print(" qx = "); Serial.print(q[1]); 
@@ -361,10 +366,10 @@ void printOrientation(float x, float y, float z)
   pitch *= 180.0 / PI;
   roll *= 180.0 / PI;
   
-  Serial.print("Pitch, Roll: ");
-  Serial.print(pitch, 2);
-  Serial.print(", ");
-  Serial.println(roll, 2);
+  //Serial.print("Pitch, Roll: ");
+  Serial.print(-pitch, 2);
+  //Serial.print(", ");
+  //Serial.println(roll, 2);
 }
 
 
