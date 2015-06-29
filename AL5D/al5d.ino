@@ -192,6 +192,9 @@ int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
 {  
    int ret_val = 0;
    
+   checkPosition();
+   //if ( ( ret_val = checkPosition() ) != 0 ) return ret_val;
+   
    DEBUG("moveArm("); DEBUG(basPulse); DEBUG(","); DEBUG(shlPulse); DEBUG(","); DEBUG(elbPulse); DEBUG(","); DEBUG(wriPulse); DEBUGln(")");
    
    //Drive servos
@@ -202,7 +205,7 @@ int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
    
    //delay(g_moveDelay);
    
-   return checkPosition();
+   return ret_val;
 }
 
 // Moves the arm slowly to a new position, depending on the specified delay
@@ -435,7 +438,7 @@ int checkPosition()
    double uln_h = ULN_H_GRADIENT*g_uln_h.mean() + ULN_H_OFFSET;
    double uln_angle_d = degrees(  atan2(uln_h,uln_r) );
    DEBUG("uln_r: "); DEBUG(uln_r); DEBUG(", uln_h: "); DEBUG(uln_h); DEBUG(", uln_angle_d: "); DEBUGln(uln_angle_d);
-   Serial.print("real angle = "); Serial.print(uln_angle_d); Serial.print(", desired angle = "); Serial.println( s + e );
+   Serial.print((double)millis()/1000.0f); Serial.print("\t"); Serial.print(uln_angle_d); Serial.print("\t"); Serial.println(s + e);
    return ( abs(uln_angle_d - (s + e)) > FB_THRESHOLD ) ? -101 : 0;
 }
 
@@ -515,12 +518,20 @@ double pulseToDeg ( int id, int pulseLength )
 
 void delayFunc ( long int delay_ )
 {
-  long int start = micros();
-  int delay_ms = delay_/1000;
+  uint32_t start = micros();
+  uint32_t count = 0;
+  while ( micros() - start < delay_ )
+  {
+    if ( count % 5 == 0 ) getFeedback();
+    count++;
+  }
+  
+  /*int delay_ms = delay_/1000;
   int delay_us = delay_%1000;
   if ( delay_ms > 0 ) delay(delay_ms);
-  if ( delay_us > 0 ) delayMicroseconds(delay_us);
-  long int fin = micros();
+  if ( delay_us > 0 ) delayMicroseconds(delay_us);*/
+  //Serial.println(count);
+  //Serial.print(delay_); Serial.print("\t"); Serial.println(micros()-start);
   /*Serial.print(delay_ms);
   Serial.print("+");
   Serial.print(delay_us);
