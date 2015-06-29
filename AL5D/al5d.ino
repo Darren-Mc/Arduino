@@ -14,6 +14,7 @@
 /************/
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <Average.h>
 
 /*********************************/
 /* General system debugging code */
@@ -40,14 +41,8 @@
 // Gripper Servo =     HS-422 <-- Unsure if this is correct
 
 // Analog pins used for accelerometers
-#define BAS_R_PIN 0
-#define BAS_H_PIN 1
-#define SHL_R_PIN 0
-#define SHL_H_PIN 1
-#define ELB_R_PIN 2 
-#define ELB_H_PIN 3
-#define WRI_R_PIN 4
-#define WRI_H_PIN 5
+#define ULN_R_PIN 1
+#define ULN_H_PIN 0
 
 // Slider pins
 #define STEP_PIN       8
@@ -84,16 +79,14 @@
 #define ELB_OFFSET 579.134
 #define WRI_OFFSET 643.501
 
-// Analog references for the centre voltage from accelerometers
-#define BAS_R_REF 0
-#define SHL_R_REF 320
-#define ELB_R_REF 316
-#define WRI_R_REF 0
+// Gradients and offsets used to convert accelerometer readings into estimated servo angle
+const double ULN_R_GRADIENT = -0.00426;
+const double ULN_H_GRADIENT = -0.00405;
 
-#define BAS_H_REF 0
-#define SHL_H_REF 362
-#define ELB_H_REF 359
-#define WRI_H_REF 362
+const double ULN_R_OFFSET = 1.891;
+const double ULN_H_OFFSET = 2.14;
+
+#define FB_THRESHOLD 15
 
 // Gripper positions
 #define GRI_OPEN 320
@@ -161,13 +154,15 @@ double   number[4], current[4], actual[4], g_angle_d[4];
 int      g_pulse[5];
 double   g_radius_mm, g_height_mm, g_hand_d, g_sliderPos;
 double   g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d;
+Average<int>   g_uln_r(10);
+Average<int>   g_uln_h(10);
 
 const double GRADIENT[] = {BAS_GRADIENT, SHL_GRADIENT, ELB_GRADIENT, WRI_GRADIENT};
 const double OFFSET[] = {BAS_OFFSET, SHL_OFFSET, ELB_OFFSET, WRI_OFFSET};
-const double R_PIN[] = {BAS_R_PIN, SHL_R_PIN, ELB_R_PIN, WRI_R_PIN};
-const double H_PIN[] = {BAS_H_PIN, SHL_H_PIN, ELB_H_PIN, WRI_H_PIN};
-const double R_REF[] = {BAS_R_REF, SHL_R_REF, ELB_R_REF, WRI_R_REF};
-const double H_REF[] = {BAS_H_REF, SHL_H_REF, ELB_H_REF, WRI_H_REF};
+//const double R_PIN[] = {BAS_R_PIN, SHL_R_PIN, ELB_R_PIN, WRI_R_PIN};
+//const double H_PIN[] = {BAS_H_PIN, SHL_H_PIN, ELB_H_PIN, WRI_H_PIN};
+//const double R_REF[] = {BAS_R_REF, SHL_R_REF, ELB_R_REF, WRI_R_REF};
+//const double H_REF[] = {BAS_H_REF, SHL_H_REF, ELB_H_REF, WRI_H_REF};
 
 const double SERVO_MIN[] = {BAS_MIN, SHL_MIN, ELB_MIN, WRI_MIN, GRI_MIN};
 const double SERVO_MAX[] = {BAS_MAX, SHL_MAX, ELB_MAX, WRI_MAX, GRI_MAX};
@@ -195,7 +190,7 @@ double ULN_SQ = ULNA*ULNA;
 // Moves arm to specified servo angles
 int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
 {  
-   int ret_val;
+   int ret_val = 0;
    
    DEBUG("moveArm("); DEBUG(basPulse); DEBUG(","); DEBUG(shlPulse); DEBUG(","); DEBUG(elbPulse); DEBUG(","); DEBUG(wriPulse); DEBUGln(")");
    
@@ -207,7 +202,7 @@ int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
    
    //delay(g_moveDelay);
    
-   return ret_val;
+   return checkPosition();
 }
 
 // Moves the arm slowly to a new position, depending on the specified delay
@@ -216,7 +211,7 @@ int slowMoveArm( double basAngle_d, double shlAngle_d, double elbAngle_d, double
    DEBUG("slowMoveArm("); DEBUG(basAngle_d); DEBUG(","); DEBUG(shlAngle_d); DEBUG(","); DEBUG(elbAngle_d); DEBUG(","); DEBUG(wriAngle_d); DEBUGln(")");
    
    if ( scaleDelay && ( delay_ > DELAY_MAX || delay_ < 0 ) ) return -5;
-   
+     
    int ret_val;
    
    int basPulse = degToPulse( BAS, basAngle_d );
@@ -393,39 +388,14 @@ int limitSwitch(int dir)
 }
 
 // Read from servo internal potentiometer
-int getFeedback(int analogPin)
+void getFeedback()
 {
-   int reading[20];
-   for (int j=0; j<20; j++){
-      reading[j] = analogRead(analogPin);  // get raw data from servo potentiometer
-      delay(1);                            // delay necessary to improve accuracy of readings
-    }                                      // sort the readings low to high in array                                
-    boolean done = false;                  // clear sorting flag             
-    while(done != true){                   // simple swap sorts numbers from lowest to highest
-    done = true;
-    for (int j=0; j<20; j++){
-      if (reading[j] > reading[j + 1]){    // sorting numbers here
-        int test = reading[j + 1];
-        reading [j+1] = reading[j] ;
-        reading[j] = test;
-        done = false;
-       }
-     }
-   }
-//  for (int j=0; j<20; j++){        //un-comment this for-loop to see the raw ordered data
-//      Serial.print(j);
-//      Serial.print("  ");
-//      Serial.println(reading[j]);
-//  }
-    int mean = 0;
-    for (int k=6; k<14; k++){      //discard the 6 highest and 6 lowest readings
-      mean += reading[k];
-    }
-    return round((double)mean/8);   //average useful readings
+   g_uln_r.push(analogRead(ULN_R_PIN));
+   g_uln_h.push(analogRead(ULN_H_PIN));
 }
 
 // Changes the wrist angle until the gripper is level
-double levelGripper()
+/*double levelGripper()
 {
    int ret_val, stall_count = 0;
    double h, h_old, servo_angle = actual[WRI], servo_angle_old = servo_angle;
@@ -454,28 +424,32 @@ double levelGripper()
       }
    }
    return 0;
-}
+}*/
 
 // Use accelerometer feedback to ensure the arm has reached the destination
 int checkPosition()
 {
-   double angle_d = getAngle(SHL);
-   if ( abs( angle_d - g_angle_d[SHL] ) > THRESHOLD3 ) return 1;
-   DEBUG("Check1: "); DEBUGln(angle_d - g_angle_d[SHL]);
-   angle_d = getAngle(ELB) - angle_d;
-   DEBUG("Check2: "); DEBUGln(angle_d - g_angle_d[ELB] + 180);
-   return ( abs( angle_d - g_angle_d[ELB] + 180 ) > THRESHOLD3 );
+   double s = pulseToDeg( SHL, g_pulse[SHL] ), e = pulseToDeg( ELB, g_pulse[ELB] ) - 180, w = pulseToDeg( WRI, g_pulse[WRI] ) - 180;
+   getFeedback();
+   double uln_r = ULN_R_GRADIENT*g_uln_r.mean() + ULN_R_OFFSET;
+   double uln_h = ULN_H_GRADIENT*g_uln_h.mean() + ULN_H_OFFSET;
+   double uln_angle_d = degrees(  atan2(uln_h,uln_r) );
+   DEBUG("uln_r: "); DEBUG(uln_r); DEBUG(", uln_h: "); DEBUG(uln_h); DEBUG(", uln_angle_d: "); DEBUGln(uln_angle_d);
+   Serial.print("real angle = "); Serial.print(uln_angle_d); Serial.print(", desired angle = "); Serial.println( s + e );
+   return ( abs(uln_angle_d - (s + e)) > FB_THRESHOLD ) ? -101 : 0;
 }
 
 // Read from accelerometers and determine angle from horizontal
-double getAngle(int id)
+/*double getAngle(int id)
 {
-   double r = getFeedback(R_PIN[id]) - R_REF[id];
-   double h = getFeedback(H_PIN[id]) - H_REF[id];
-   double angle_d = degrees( id == ELB ? atan2(-h,-r) : atan2(-h,r) );
+   getFeedback();
+   double r = ULN_R_GRADIENT*g_uln_r.mean() - ULN_R_OFFSET;
+   double h = ULN_H_GRADIENT*g_uln_h.mean() - ULN_H_OFFSET;
+   double angle_d = degrees(  atan2(h,r) );
    DEBUG("r: "); DEBUG(r); DEBUG(", h: "); DEBUG(h); DEBUG(", angle_d: "); DEBUGln(angle_d);
+   Serial.println(angle_d);
    return angle_d;
-}
+}*/
 
 // Write angle to servo using microseconds for added precision
 int servoWrite( int id, double angle_d )
@@ -567,6 +541,7 @@ void setup()
    pinMode(LSWITCH_PIN, INPUT);
    pinMode(RSWITCH_PIN, INPUT);
    pinMode(LIGHT_PIN, OUTPUT);
+   analogReference(EXTERNAL);
    
    pwm.begin();
   
