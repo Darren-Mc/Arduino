@@ -152,6 +152,7 @@ uint32_t count = 0;  // used to control display output rate
 uint32_t delt_t = 0; // used to control display output rate
 float pitch, yaw, roll, heading;
 float deltat = 0.0f;        // integration interval for both filter schemes
+float seconds = 0.0f;
 uint32_t lastUpdate = 0;    // used to calculate integration interval
 uint32_t Now = 0;           // used to calculate integration interval
 
@@ -179,11 +180,12 @@ void setup()
   // make sure communication was successful.
   uint32_t status = dof.begin();
  
-  Serial.print("LSM9DS0 WHO_AM_I's returned: 0x");
+  /*Serial.print("LSM9DS0 WHO_AM_I's returned: 0x");
   Serial.println(status, HEX);
   Serial.println("Should be 0x49D4");
-  Serial.println();
-  delay(2000); 
+  Serial.println();*/
+  Serial.print("Time(s)\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Yaw (Deg)");
+  delay(200); //2000
   
  // Set data output ranges; choose lowest ranges for maximum resolution
  // Accelerometer scale can be: A_SCALE_2G, A_SCALE_4G, A_SCALE_6G, A_SCALE_8G, or A_SCALE_16G   
@@ -213,6 +215,7 @@ void setup()
  // Use the FIFO mode to average accelerometer and gyro readings to calculate the biases, which can then be removed from
  // all subsequent measurements.
     dof.calLSM9DS0(gbias, abias);
+    
 }
 
 void loop()
@@ -258,7 +261,7 @@ void loop()
   // Print the heading and orientation for fun!
     //printHeading(mx, my);
     //printOrientation(ax, ay, az);
-    printOrientation(dof.calcAccel(X.mean()) - abias[0], dof.calcAccel(Y.mean()) - abias[1], dof.calcAccel(Z.mean()) - abias[2]);
+    //printOrientation(dof.calcAccel(X.mean()) - abias[0], dof.calcAccel(Y.mean()) - abias[1], dof.calcAccel(Z.mean()) - abias[2]);
 
   // Define output variables from updated quaternion---these are Tait-Bryan angles, commonly used in aircraft orientation.
   // In this coordinate system, the positive z-axis is down toward Earth. 
@@ -290,11 +293,16 @@ void loop()
     
     //Serial.print("temperature = "); Serial.println(temperature, 2);
     
+    Serial.print((double)millis()/1000);
+    Serial.print("\t");
+    
     //Serial.print("Yaw, Pitch, Roll: ");
     //Serial.print(yaw, 2);
-    Serial.print("\t");
-    Serial.println(pitch, 2);
     //Serial.print("\t");
+    Serial.print(pitch, 2);
+    Serial.print("\t");
+    if ( roll > 0 ) Serial.println(-roll+180, 2);
+    else Serial.println(-roll-180,2);
     //Serial.println(roll, 2);
     
     /*Serial.print("q0 = "); Serial.print(q[0]);
