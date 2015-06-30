@@ -96,6 +96,26 @@ void Filter::sort()
 		_copy[i] = _store[i];
 	}
 	QuickSort(_copy,0,_count-1);
+	for (int i = 0; i < _count; i++)
+	{
+		Serial.print(_copy[i]);
+		if (i + 1 < _count) Serial.print(",");
+		else Serial.print("\n");
+	}
+	
+	int cutoff = round((float)(_count*_cutoff)/100.0f);
+	
+	if (_count-2*cutoff == 0 && cutoff > 0)
+	{
+		cutoff -= 1;
+	}
+	
+	for (int i = cutoff; i < _count - cutoff; i++)
+	{
+		Serial.print(_copy[i]);
+		Serial.print(",");
+	}
+	Serial.print("\n");
 }
 
 void Filter::printArray()
