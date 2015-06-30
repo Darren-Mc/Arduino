@@ -434,8 +434,8 @@ int checkPosition()
 {
    double s = pulseToDeg( SHL, g_pulse[SHL] ), e = pulseToDeg( ELB, g_pulse[ELB] ) - 180, w = pulseToDeg( WRI, g_pulse[WRI] ) - 180;
    getFeedback();
-   double uln_r = ULN_R_GRADIENT*g_uln_r.mean() + ULN_R_OFFSET;
-   double uln_h = ULN_H_GRADIENT*g_uln_h.mean() + ULN_H_OFFSET;
+   double uln_r = ULN_R_GRADIENT*analogRead(ULN_R_PIN) + ULN_R_OFFSET;
+   double uln_h = ULN_H_GRADIENT*analogRead(ULN_H_PIN) + ULN_H_OFFSET;
    double uln_angle_d = degrees(  atan2(uln_h,uln_r) );
    DEBUG("uln_r: "); DEBUG(uln_r); DEBUG(", uln_h: "); DEBUG(uln_h); DEBUG(", uln_angle_d: "); DEBUGln(uln_angle_d);
    Serial.print((double)millis()/1000.0f); Serial.print("\t"); Serial.print(uln_angle_d); Serial.print("\t"); Serial.println(s + e);
@@ -522,7 +522,7 @@ void delayFunc ( long int delay_ )
   uint32_t count = 0;
   while ( micros() - start < delay_ )
   {
-    if ( count % 5 == 0 ) getFeedback();
+    //if ( count % 5 == 0 ) getFeedback();
     count++;
   }
   
@@ -600,7 +600,7 @@ void loop()
          case 'p':
             servoWrite(GRI,GRI_MICROPLATE); Serial.println("Gripped Microplate"); break;
          case 'r':
-            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK,5,1) ) == 0 ) { Serial.print("("); Serial.print(BAS_PARK); Serial.print(","); Serial.print(SHL_PARK); Serial.print(","); Serial.print(ELB_PARK), Serial.print(","); Serial.print(WRI_PARK); Serial.println(")"); }
+            if( ( ret_val = slowMoveArm(BAS_PARK,SHL_PARK,ELB_PARK,WRI_PARK,5,1) ) == 0 ) { }//Serial.print("("); Serial.print(BAS_PARK); Serial.print(","); Serial.print(SHL_PARK); Serial.print(","); Serial.print(ELB_PARK), Serial.print(","); Serial.print(WRI_PARK); Serial.println(")"); }
             else Serial.println(ret_val);
             break;
          case 'R':
@@ -608,7 +608,7 @@ void loop()
             else Serial.println(ret_val);
             break;
          case 't':
-            if( ( ret_val = slowMoveArm(90,90,90,90,5,1) ) == 0 ) Serial.println("(90,90,90,90)");
+            if( ( ret_val = slowMoveArm(90,90,90,90,5,1) ) == 0 ) { } //Serial.println("(90,90,90,90)");
             else Serial.println(ret_val);
             break;
             
