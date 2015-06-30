@@ -14,7 +14,7 @@
 /************/
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include <Average.h>
+#include <Filter.h>
 
 /*********************************/
 /* General system debugging code */
@@ -154,8 +154,8 @@ double   number[4], current[4], actual[4], g_angle_d[4];
 int      g_pulse[5];
 double   g_radius_mm, g_height_mm, g_hand_d, g_sliderPos;
 double   g_prevRadius_mm, g_prevHeight_mm, g_prevBase_d, g_prevHand_d;
-Average<int>   g_uln_r(10);
-Average<int>   g_uln_h(10);
+Filter   g_uln_r(10);
+Filter   g_uln_h(10);
 
 const double GRADIENT[] = {BAS_GRADIENT, SHL_GRADIENT, ELB_GRADIENT, WRI_GRADIENT};
 const double OFFSET[] = {BAS_OFFSET, SHL_OFFSET, ELB_OFFSET, WRI_OFFSET};
