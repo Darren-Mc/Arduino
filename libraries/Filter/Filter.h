@@ -8,41 +8,41 @@
 #include <pins_arduino.h>
 #endif
 
-class Filter
+template <class T> class Filter
 {
 	private:
 		// Private functions and variables here.  They can only be accessed
         // by functions within the class.
-		int *_store;
-		int *_copy;
+		T *_store;
+		T *_copy;
+		T _sum;
 		uint32_t _position;                                   // _position variable for circular buffer
         uint32_t _count;
         uint32_t _size;
-		uint32_t _sum;
 		uint32_t _cutoff;									  // _cutoff is the percentage of values to be removed from each side when calculating mean
-		void swap(int &a, int &b);
-		int SplitArray(int* array, int pivot, int startIndex, int endIndex);
-		void QuickSort(int* array, int startIndex, int endIndex);
+		void swap(T &a, T &b);
+		int SplitArray(T* array, int pivot, int startIndex, int endIndex);
+		void QuickSort(T* array, int startIndex, int endIndex);
 	
 	public:
 		// Public functions and variables.  These can be accessed from
         // outside the class.
 		Filter(uint32_t size);
 		~Filter();
-		void push(int entry);
+		void push(T entry);
 		float mean();
-		int get(uint32_t);
+		T get(uint32_t);
 		int getCount();
 		void sort();
 		void printArray();
 		void setCutOff(int cutoff);
 };
 
-Filter::Filter(uint32_t size) {
+template <class T> Filter<T>::Filter(uint32_t size) {
     _size = size;
     _count = 0;
-    _store = (int *)malloc(sizeof(int) * size);
-	_copy = (int *)malloc(sizeof(int) * size);
+    _store = (T *)malloc(sizeof(T) * size);
+	_copy = (T *)malloc(sizeof(T) * size);
     _position = 0;                                            // track position for circular storage
     _sum = 0;                                                 // track sum for fast mean calculation
 	_cutoff = 20;
@@ -52,15 +52,15 @@ Filter::Filter(uint32_t size) {
     }
 }
 
-Filter::~Filter() {
+template <class T> Filter<T>::~Filter() {
     free(_store);
 }
 
-int Filter::getCount() {
+template <class T> int Filter<T>::getCount() {
     return _count;
 }
 
-void Filter::setCutOff(int cutoff)
+template <class T> void Filter<T>::setCutOff(int cutoff)
 {
 	if (cutoff < 50 && cutoff > 0)
 	{
@@ -68,7 +68,7 @@ void Filter::setCutOff(int cutoff)
 	}
 }
 
-void Filter::push(int entry) {
+template <class T> void Filter<T>::push(T entry) {
     if (_count < _size) {                                     // adding new values to array
         _count++;                                             // count number of values in array
     } else {                                                    // overwriting old values
@@ -80,7 +80,7 @@ void Filter::push(int entry) {
     if (_position >= _size) _position = 0;                    // loop the position counter
 }
 
-int Filter::get(uint32_t index) {
+template <class T> T Filter<T>::get(uint32_t index) {
     if (index >= _count) {
         return 0;
     }
@@ -89,16 +89,36 @@ int Filter::get(uint32_t index) {
     return _store[cindex];
 }
 
-void Filter::sort()
+template <class T> void Filter<T>::sort()
 {
 	for (int i = 0; i < _count; i++)
 	{
 		_copy[i] = _store[i];
 	}
 	QuickSort(_copy,0,_count-1);
+	/*for (int i = 0; i < _count; i++)
+	{
+		Serial.print(_copy[i]);
+		if (i + 1 < _count) Serial.print(",");
+		else Serial.print("\n");
+	}*/
+	
+	int cutoff = round((float)(_count*_cutoff)/100.0f);
+	
+	if (_count-2*cutoff == 0 && cutoff > 0)
+	{
+		cutoff -= 1;
+	}
+	
+	/*for (int i = cutoff; i < _count - cutoff; i++)
+	{
+		Serial.print(_copy[i]);
+		Serial.print(",");
+	}
+	Serial.print("\n");*/
 }
 
-void Filter::printArray()
+template <class T> void Filter<T>::printArray()
 {
 	for (int i = 0; i < _count; i++)
 	{
@@ -108,7 +128,7 @@ void Filter::printArray()
 	}
 }
 
-float Filter::mean()
+template <class T> float Filter<T>::mean()
 {
 	if (_count == 0) {
         return 0;
@@ -116,7 +136,7 @@ float Filter::mean()
 	
 	Filter::sort();
 	
-	uint32_t sum = 0;
+	float sum = 0;
 	
 	int cutoff = round((float)(_count*_cutoff)/100.0f);
 	
@@ -129,16 +149,16 @@ float Filter::mean()
 	{
 		sum += _copy[i];
 	}
-    return ((float)sum / (float)(_count-2*cutoff));   
+    return (sum / (float)(_count-2*cutoff));
 }
 
 /* This function swaps two numbers
    Arguments :
              a, b - the numbers to be swapped
    */
-void Filter::swap(int &a, int &b)
+template <class T> void Filter<T>::swap(T &a, T &b)
 {
-    int temp;
+    T temp;
     temp = a;
     a = b;
     b = temp;
@@ -150,7 +170,7 @@ void Filter::swap(int &a, int &b)
              startIndex - index of the first element of the section
              endIndex - index of the last element of the section
    */
-void Filter::QuickSort(int* array, int startIndex, int endIndex)
+template <class T> void Filter<T>::QuickSort(T* array, int startIndex, int endIndex)
 {
     int pivot = array[startIndex];                  //pivot element is the leftmost element
     int splitPoint;
@@ -177,7 +197,7 @@ void Filter::QuickSort(int* array, int startIndex, int endIndex)
    Returns :
            the position of the pivot
    */
-int Filter::SplitArray(int* array, int pivot, int startIndex, int endIndex)
+template <class T> int Filter<T>::SplitArray(T* array, int pivot, int startIndex, int endIndex)
 {
     int leftBoundary = startIndex;
     int rightBoundary = endIndex;
