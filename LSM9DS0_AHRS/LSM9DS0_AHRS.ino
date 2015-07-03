@@ -1,3 +1,5 @@
+#include <Filter.h>
+
 /*****************************************************************
 LSM9DS0_AHRS.ino
 SFE_LSM9DS0 Library AHRS Data Fusion Example Code
@@ -162,9 +164,21 @@ float q[4] = {1.0f, 0.0f, 0.0f, 0.0f};    // vector to hold quaternion
 float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for Mahony method
 float temperature;
 
-Average<double> X(10);
-Average<double> Y(10);
-Average<double> Z(10);
+/*Average<double> AX(10);
+Average<double> AY(10);
+Average<double> AZ(10);
+
+Average<double> GX(10);
+Average<double> GY(10);
+Average<double> GZ(10);*/
+
+Filter<int16_t> AX(10);
+Filter<int16_t> AY(10);
+Filter<int16_t> AZ(10);
+
+Filter<int16_t> GX(10);
+Filter<int16_t> GY(10);
+Filter<int16_t> GZ(10);
 
 void setup()
 {
@@ -184,8 +198,8 @@ void setup()
   Serial.println(status, HEX);
   Serial.println("Should be 0x49D4");
   Serial.println();*/
-  Serial.print("Time(s)\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Yaw (Deg)");
-  delay(200); //2000
+  Serial.print("Time(s)\t"); Serial.print("Ax (mg)"); Serial.print("\t"); Serial.print("Ay (mg)"); Serial.print("\t"); Serial.print("Az (mg)"); Serial.print("\t"); Serial.print("Gx (Deg/s)"); Serial.print("\t"); Serial.print("Gy (Deg/s)"); Serial.print("\t"); Serial.print("Gz (Deg/s)"); Serial.print("\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Yaw (Deg)");
+  delay(4000); //2000 (Tried 200 and made biases innaccurate!)
   
  // Set data output ranges; choose lowest ranges for maximum resolution
  // Accelerometer scale can be: A_SCALE_2G, A_SCALE_4G, A_SCALE_6G, A_SCALE_8G, or A_SCALE_16G   
@@ -215,7 +229,6 @@ void setup()
  // Use the FIFO mode to average accelerometer and gyro readings to calculate the biases, which can then be removed from
  // all subsequent measurements.
     dof.calLSM9DS0(gbias, abias);
-    
 }
 
 void loop()
@@ -225,14 +238,15 @@ void loop()
     gx = dof.calcGyro(dof.gx) - gbias[0];   // Convert to degrees per seconds, remove gyro biases
     gy = dof.calcGyro(dof.gy) - gbias[1];
     gz = dof.calcGyro(dof.gz) - gbias[2];
+    GX.push(dof.gx); GY.push(dof.gy); GZ.push(dof.gz);
   }
   
   if(digitalRead(INT1XM)) {  // When new accelerometer data is ready
     dof.readAccel();         // Read raw accelerometer data
     ax = dof.calcAccel(dof.ax) - abias[0];   // Convert to g's, remove accelerometer biases
     ay = dof.calcAccel(dof.ay) - abias[1];
-    az = dof.calcAccel(dof.az) - abias[2];
-    X.push(dof.ax); Y.push(dof.ay); Z.push(dof.az);
+    az = dof.calcAccel(dof.az) + abias[2];
+    AX.push(dof.ax); AY.push(dof.ay); AZ.push(dof.az);
   }
   
   if(digitalRead(INT2XM)) {  // When new magnetometer data is ready
@@ -280,6 +294,35 @@ void loop()
     yaw   *= 180.0f / PI; 
     //yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
     roll  *= 180.0f / PI;
+    
+    Serial.print((double)millis()/1000);
+    Serial.print("\t");
+    
+    Serial.print((int)1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
+    //Serial.print((int)1000*(dof.calcAccel(AY.mean()) - abias[1])); Serial.print("\t");
+    //Serial.print((int)1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");
+    
+    //Serial.print(dof.calcGyro(GX.mean()) - gbias[0], 2); Serial.print("\t");
+   // Serial.print(dof.calcGyro(GY.mean()) - gbias[1], 2); Serial.print("\t");
+    //Serial.print(dof.calcGyro(GZ.mean()) - gbias[2], 2); Serial.print("\t");
+    
+    /*if (abs((int)1000*(dof.calcAccel(AX.mean()) - abias[0])) > 100)
+    {
+      for (int i=0; i < 10; i++)
+      {
+        Serial.print(GY.get(i));
+        Serial.print("\t");
+      }
+      Serial.print("\n");
+    }*/
+    
+    /*Serial.print((int)1000*ax); Serial.print("\t");
+    Serial.print((int)1000*ay); Serial.print("\t");
+    Serial.print((int)1000*az); Serial.print("\t");
+    
+    Serial.print(gx, 2); Serial.print("\t");
+    Serial.print(gy, 2); Serial.print("\t");
+    Serial.print(gz, 2); Serial.print("\t");*/
 
     /*Serial.print("ax = "); Serial.print((int)1000*ax);  
     Serial.print(" ay = "); Serial.print((int)1000*ay); 
@@ -293,8 +336,7 @@ void loop()
     
     //Serial.print("temperature = "); Serial.println(temperature, 2);
     
-    Serial.print((double)millis()/1000);
-    Serial.print("\t");
+
     
     //Serial.print("Yaw, Pitch, Roll: ");
     //Serial.print(yaw, 2);
