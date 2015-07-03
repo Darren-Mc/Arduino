@@ -255,7 +255,7 @@ void LSM9DS0::initMag()
 void LSM9DS0::calLSM9DS0(float * gbias, float * abias)
 {  
   uint8_t data[6] = {0, 0, 0, 0, 0, 0};
-  int16_t gyro_bias[3] = {0, 0, 0}, accel_bias[3] = {0, 0, 0};
+  float gyro_bias[3] = {0, 0, 0}, accel_bias[3] = {0, 0, 0};
   int samples, ii;
   
   // First get gyro bias
