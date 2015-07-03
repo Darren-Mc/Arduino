@@ -157,12 +157,20 @@ float deltat = 0.0f;        // integration interval for both filter schemes
 float seconds = 0.0f;
 uint32_t lastUpdate = 0;    // used to calculate integration interval
 uint32_t Now = 0;           // used to calculate integration interval
+uint32_t Start = 0;
 
 float abias[3] = {0, 0, 0}, gbias[3] = {0, 0, 0};
 float ax, ay, az, gx, gy, gz, mx, my, mz; // variables to hold latest sensor data values 
 float q[4] = {1.0f, 0.0f, 0.0f, 0.0f};    // vector to hold quaternion
 float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for Mahony method
 float temperature;
+
+double XYZ[3];
+double XYZmin[] = {258.758,283.705,140.1667};
+double XYZmid[] = {504.3441,529.6951,389.774};
+double XYZmax[] = {741.2438,770.9762,633.8848};
+double XYZbias[3] = {0.0, 0.0, 0.0};
+double gforce[3];
 
 /*Average<double> AX(10);
 Average<double> AY(10);
@@ -180,6 +188,10 @@ Filter<int16_t> GX(10);
 Filter<int16_t> GY(10);
 Filter<int16_t> GZ(10);
 
+Filter<int> X(10);
+Filter<int> Y(10);
+Filter<int> Z(10);
+
 void setup()
 {
   Serial.begin(38400); // Start serial at 38400 bps
@@ -189,6 +201,7 @@ void setup()
   pinMode(INT2XM, INPUT);
   pinMode(DRDYG,  INPUT);
         
+  analogReference(EXTERNAL);
   // begin() returns a 16-bit value which includes both the gyro 
   // and accelerometers WHO_AM_I response. You can check this to
   // make sure communication was successful.
@@ -198,8 +211,9 @@ void setup()
   Serial.println(status, HEX);
   Serial.println("Should be 0x49D4");
   Serial.println();*/
-  Serial.print("Time(s)\t"); Serial.print("Ax (mg)"); Serial.print("\t"); Serial.print("Ay (mg)"); Serial.print("\t"); Serial.print("Az (mg)"); Serial.print("\t"); Serial.print("Gx (Deg/s)"); Serial.print("\t"); Serial.print("Gy (Deg/s)"); Serial.print("\t"); Serial.print("Gz (Deg/s)"); Serial.print("\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Yaw (Deg)");
+  Serial.print("Time(s)\t"); Serial.print("Ax (mg)"); Serial.print("\t"); Serial.print("Ay (mg)"); Serial.print("\t"); Serial.print("Az (mg)"); Serial.print("\t"); Serial.print("Axold (mg)"); Serial.print("\t"); Serial.print("Ayold (mg)"); Serial.print("\t"); Serial.print("Azold (mg)"); Serial.print("\t"); Serial.print("Gx (Deg/s)"); Serial.print("\t"); Serial.print("Gy (Deg/s)"); Serial.print("\t"); Serial.print("Gz (Deg/s)"); Serial.print("\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Pitch (Deg)");
   delay(4000); //2000 (Tried 200 and made biases innaccurate!)
+
   
  // Set data output ranges; choose lowest ranges for maximum resolution
  // Accelerometer scale can be: A_SCALE_2G, A_SCALE_4G, A_SCALE_6G, A_SCALE_8G, or A_SCALE_16G   
@@ -229,6 +243,25 @@ void setup()
  // Use the FIFO mode to average accelerometer and gyro readings to calculate the biases, which can then be removed from
  // all subsequent measurements.
     dof.calLSM9DS0(gbias, abias);
+    
+    double sumx=0;
+    double sumy=0;
+    double sumz=0;
+    
+    int k;
+    for(k=0; k < 20; k++)
+    {
+      delay(1);
+      sumx+=analogRead(A2);
+      delay(1);
+      sumy+=analogRead(A1);
+      delay(1);
+      sumz+=analogRead(A0)-(double)(XYZmax[2]-XYZmin[2])/2;
+    }
+    
+    XYZbias[0] = sumx/20;
+    XYZbias[1] = sumy/20;
+    XYZbias[2] = sumz/20;
 }
 
 void loop()
@@ -245,8 +278,9 @@ void loop()
     dof.readAccel();         // Read raw accelerometer data
     ax = dof.calcAccel(dof.ax) - abias[0];   // Convert to g's, remove accelerometer biases
     ay = dof.calcAccel(dof.ay) - abias[1];
-    az = dof.calcAccel(dof.az) + abias[2];
+    az = dof.calcAccel(dof.az) - abias[2];
     AX.push(dof.ax); AY.push(dof.ay); AZ.push(dof.az);
+    //Serial.print("dof.ax: "); Serial.print(dof.ax);// Serial.print(", ax_g: "); Serial.print(dof.calcAccel(dof.ax),3); Serial.print(", ax: "); Serial.println(ax);
   }
   
   if(digitalRead(INT2XM)) {  // When new magnetometer data is ready
@@ -295,16 +329,27 @@ void loop()
     //yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
     roll  *= 180.0f / PI;
     
-    Serial.print((double)millis()/1000);
+    if( Start == 0 )
+    {
+      Start = millis();
+      Serial.print(0);
+    }
+    else Serial.print((double)(millis()-Start)/1000.0);
     Serial.print("\t");
     
-    Serial.print((int)1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
-    //Serial.print((int)1000*(dof.calcAccel(AY.mean()) - abias[1])); Serial.print("\t");
-    //Serial.print((int)1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");
     
-    //Serial.print(dof.calcGyro(GX.mean()) - gbias[0], 2); Serial.print("\t");
-   // Serial.print(dof.calcGyro(GY.mean()) - gbias[1], 2); Serial.print("\t");
-    //Serial.print(dof.calcGyro(GZ.mean()) - gbias[2], 2); Serial.print("\t");
+    //Serial.print((int)1000*az); Serial.print("\t"); // Raw
+    Serial.print(1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
+    Serial.print(1000*(dof.calcAccel(AY.mean()) - abias[1])); Serial.print("\t");
+    Serial.print(1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");
+    
+    
+    
+    printGforce();
+    
+    Serial.print(dof.calcGyro(GX.mean()) - gbias[0], 2); Serial.print("\t");
+    Serial.print(dof.calcGyro(GY.mean()) - gbias[1], 2); Serial.print("\t");
+    Serial.print(dof.calcGyro(GZ.mean()) - gbias[2], 2); Serial.print("\t");
     
     /*if (abs((int)1000*(dof.calcAccel(AX.mean()) - abias[0])) > 100)
     {
@@ -341,11 +386,13 @@ void loop()
     //Serial.print("Yaw, Pitch, Roll: ");
     //Serial.print(yaw, 2);
     //Serial.print("\t");
+    
     Serial.print(pitch, 2);
     Serial.print("\t");
-    if ( roll > 0 ) Serial.println(-roll+180, 2);
-    else Serial.println(-roll-180,2);
+    if ( roll > 0 ) Serial.print(-roll+180, 2);
+    else Serial.print(-roll-180,2);
     //Serial.println(roll, 2);
+    
     
     /*Serial.print("q0 = "); Serial.print(q[0]);
     Serial.print(" qx = "); Serial.print(q[1]); 
@@ -353,6 +400,8 @@ void loop()
     Serial.print(" qz = "); Serial.println(q[3]);*/ 
     
     //Serial.print("filter rate = "); Serial.println(1.0f/deltat, 1);
+    
+    Serial.print("\n");
   
     // With ODR settings of 400 Hz, 380 Hz, and 25 Hz for the accelerometer, gyro, and magnetometer, respectively,
     // the filter is updating at a ~125 Hz rate using the Madgwick scheme and ~165 Hz using the Mahony scheme 
@@ -377,6 +426,58 @@ void loop()
     }
 }
 
+int printGforce()
+{
+  X.push(analogRead(A2)); Y.push(analogRead(A1)); Z.push(analogRead(A0));
+  XYZ[0] = X.mean(); XYZ[1] = Y.mean(); XYZ[2] = Z.mean();
+    
+    /*
+  for (int i=0;i<3;i++)
+  {
+    if (XYZ[i] == XYZmid[i]) gforce[i] = 0;
+    if (XYZ[i] < XYZmid[i]) gforce[i] = 1000*(double)(XYZmid[i]-XYZ[i])/(double)(XYZmid[i]-XYZmin[i]);
+    else if (XYZ[i] > XYZmid[i]) gforce[i] = 1000*(double)(XYZmid[i]-XYZ[i])/(double)(XYZmax[i]-XYZmid[i]);
+  }*/
+  
+  for (int i=0;i<3;i++)
+  {
+    gforce[i] = ((double)XYZ[i]-XYZbias[i])*2000/(double)(XYZmax[i]-XYZmin[i]);
+  }
+  
+  gforce[2] = -gforce[2];
+  /*Serial.print(millis());
+  Serial.print("\t");*/
+
+  for (int j=0;j<3;j++)
+  {
+    if (gforce[j] > 0) Serial.print(" ");
+    Serial.print(gforce[j]);
+    Serial.print("\t");
+  }
+  //Serial.println();
+  
+  /*
+  int zz = analogRead(A0);
+  double gzz;
+  int j = 2;
+  if (zz == XYZmid[j]) gzz = 0;
+  if (zz < XYZmid[j]) gzz = 1000*(double)(XYZmid[j]-zz)/(double)(XYZmid[j]-XYZmin[j]);
+  else if (zz > XYZmid[j]) gzz = 1000*(double)(XYZmid[j]-zz)/(double)(XYZmax[j]-XYZmid[j]);
+  Serial.print(-gzz);
+  Serial.print("\t");
+  Serial.print(-gforce[j]);
+  Serial.print("\t");
+  
+  */
+  //sprintf(buff,"%5.2f%10.2f%10.2f\n",XYZ[0],XYZ[1],XYZ[2]);
+  //Serial.print(buff);
+  /*Serial.print(gforce[0]);
+  Serial.print("\t");
+  Serial.print(gforce[1]);
+  Serial.print("\t");
+  Serial.println(gforce[2]);*/
+  return 0;
+}
 
 // Here's a fun function to calculate your heading, using Earth's
 // magnetic field.
