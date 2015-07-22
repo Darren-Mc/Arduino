@@ -1,8 +1,8 @@
 #include <arduino2.h>
 
-#define c_EncoderPinA A0
-#define c_EncoderPinB A1
-#define c_EncoderPinZ A2
+#define c_EncoderPinA A1
+#define c_EncoderPinB A2
+#define c_EncoderPinZ A0
 
 #define d_EncoderPinZ 2
 #define d_EncoderPinA 3
@@ -12,7 +12,7 @@
 #define d_EncoderInterruptA 1
 
 volatile bool _EncoderBSet;
-volatile long _EncoderTicks = 0;
+volatile int _EncoderTicks = 0;
 long _last = 0;
 double _speed = 0;
 long _CentreCount = 0;
@@ -34,7 +34,6 @@ void setup()
   digitalWrite(A2, HIGH);
   
   attachInterrupt(d_EncoderInterruptA, HandleInterruptA, RISING);
-  attachInterrupt(d_EncoderInterruptZ, HandleInterruptZ, RISING);
 }
  
 void loop()
@@ -45,9 +44,10 @@ void loop()
   uint32_t start = micros();
   while ( Serial.available() == 0 )
   {
-    Serial.write(analogRead(A0)/4);
-    Serial.write(analogRead(A1)/4);
-    Serial.write(analogRead(A2)/4);
+    Serial.write(analogRead(c_EncoderPinA)/4);
+    Serial.write(analogRead(c_EncoderPinB)/4);
+    //Serial.write(analogRead(c_EncoderPinZ)/4);
+    send_ticks();
     n++;
   }
   Serial.flush();
@@ -64,8 +64,20 @@ void HandleInterruptA()
  
   // and adjust counter + if A leads B
     _EncoderTicks += _EncoderBSet ? -1 : +1;
-    
-    long us = micros();
-    if(_last != 0) _speed = 5000.0f/(double)(us-_last);
-    _last = us;
 }
+
+char *int2str( int num ) {
+    static char retnum[11];       // Enough for 20 digits plus NUL from a 64-bit uint.
+    sprintf( retnum, "%l", num );
+    return retnum;
+}
+
+void send_ticks ()
+{
+  // get access to the float as a byte-array:
+  byte * data = (byte *) &_EncoderTicks; 
+  // write the data to the serial
+  Serial.write (data, 2);
+  //_EncoderTicks++;
+}
+
