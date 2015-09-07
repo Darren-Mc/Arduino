@@ -12,7 +12,7 @@
 #define d_EncoderInterruptA 1
 
 volatile bool _EncoderBSet;
-volatile int _EncoderTicks = 0;
+volatile byte _EncoderTicks = 0;
 long _last = 0;
 double _speed = 0;
 long _CentreCount = 0;
@@ -44,11 +44,27 @@ void loop()
   uint32_t start = micros();
   while ( Serial.available() == 0 )
   {
-    Serial.write(analogRead(c_EncoderPinA)/4);
-    Serial.write(analogRead(c_EncoderPinB)/4);
+    /*
+    int A = analogRead(c_EncoderPinA)/4;
+    if (A == 255) A = 254;
+    else A = A+A%2;
+    int B = analogRead(c_EncoderPinB)/4;
+    if (B != 255) B = B+(1-B%2);
+    Serial.write(A);
+    Serial.write(B);*/
+    
+    uint32_t time = micros();
+    int A = digitalRead(d_EncoderPinA)<<1;
+    int B = digitalRead(d_EncoderPinB);
+    Serial.write(A+B);//Serial.write(analogRead(c_EncoderPinA)/4);
+    //Serial.print("\t");
+    //Serial.write(B);//Serial.write(analogRead(c_EncoderPinB)/4);
+    //Serial.write(_EncoderTicks);
+    //Serial.print("\n");
     //Serial.write(analogRead(c_EncoderPinZ)/4);
-    send_ticks();
+    //send_ticks();
     n++;
+    while(micros()-time<96){}
   }
   Serial.flush();
   Serial.println();
@@ -78,6 +94,7 @@ void send_ticks ()
   byte * data = (byte *) &_EncoderTicks; 
   // write the data to the serial
   Serial.write (data, 2);
+  //Serial.println(_EncoderTicks);
   //_EncoderTicks++;
 }
 
