@@ -96,6 +96,7 @@ Distributed as-is; no warranty is given.
 //#include <Adafruit_GFX.h>
 //#include <Adafruit_PCD8544.h>
 #include <Average.h>
+#include <Servo.h>
 
 
 // Using NOKIA 5110 monochrome 84 x 48 pixel display
@@ -117,6 +118,13 @@ Distributed as-is; no warranty is given.
 // parameters for this constructor are:
 // [SPI or I2C Mode declaration],[gyro I2C address],[xm I2C add.]
 LSM9DS0 dof(MODE_I2C, LSM9DS0_G, LSM9DS0_XM);
+
+/////////////////
+// Servo Setup //
+/////////////////
+Servo myservo;
+int pos = 0;
+int dpos = 1;
 
 ///////////////////////
 // Example SPI Setup //
@@ -151,6 +159,7 @@ const byte INT2XM = 13; // INT2XM tells us when mag data is ready
 #define Ki 0.0f
 
 uint32_t count = 0;  // used to control display output rate
+uint32_t count2 = 0;  // used to control display output rate
 uint32_t delt_t = 0; // used to control display output rate
 float pitch, yaw, roll, heading;
 float deltat = 0.0f;        // integration interval for both filter schemes
@@ -200,6 +209,8 @@ void setup()
   pinMode(INT1XM, INPUT);
   pinMode(INT2XM, INPUT);
   pinMode(DRDYG,  INPUT);
+  
+  myservo.attach(9);
         
   analogReference(EXTERNAL);
   // begin() returns a 16-bit value which includes both the gyro 
@@ -211,7 +222,7 @@ void setup()
   Serial.println(status, HEX);
   Serial.println("Should be 0x49D4");
   Serial.println();*/
-  Serial.print("Time(s)\t"); Serial.print("Ax (mg)"); Serial.print("\t"); Serial.print("Ay (mg)"); Serial.print("\t"); Serial.print("Az (mg)"); Serial.print("\t"); Serial.print("Axold (mg)"); Serial.print("\t"); Serial.print("Ayold (mg)"); Serial.print("\t"); Serial.print("Azold (mg)"); Serial.print("\t"); Serial.print("Gx (Deg/s)"); Serial.print("\t"); Serial.print("Gy (Deg/s)"); Serial.print("\t"); Serial.print("Gz (Deg/s)"); Serial.print("\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Pitch (Deg)");
+  //Serial.print("Time(s)\t"); Serial.print("Ax (mg)"); Serial.print("\t"); Serial.print("Ay (mg)"); Serial.print("\t"); Serial.print("Az (mg)"); Serial.print("\t"); Serial.print("Axold (mg)"); Serial.print("\t"); Serial.print("Ayold (mg)"); Serial.print("\t"); Serial.print("Azold (mg)"); Serial.print("\t"); Serial.print("Gx (Deg/s)"); Serial.print("\t"); Serial.print("Gy (Deg/s)"); Serial.print("\t"); Serial.print("Gz (Deg/s)"); Serial.print("\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Pitch (Deg)");
   delay(4000); //2000 (Tried 200 and made biases innaccurate!)
 
   
@@ -280,7 +291,8 @@ void loop()
     ay = dof.calcAccel(dof.ay) - abias[1];
     az = dof.calcAccel(dof.az) - abias[2];
     AX.push(dof.ax); AY.push(dof.ay); AZ.push(dof.az);
-    //Serial.print("dof.ax: "); Serial.print(dof.ax);// Serial.print(", ax_g: "); Serial.print(dof.calcAccel(dof.ax),3); Serial.print(", ax: "); Serial.println(ax);
+    //Serial.print("dof.ax: "); Serial.print(dof.ax); Serial.print(", ax_g: "); Serial.print(dof.calcAccel(dof.ax),3); Serial.print(", ax: "); Serial.println(ax);
+    //Serial.print(dof.ax); Serial.print('\t'); Serial.print(dof.ay); Serial.print('\t'); Serial.print(dof.az); Serial.print('\n');
   }
   
   if(digitalRead(INT2XM)) {  // When new magnetometer data is ready
@@ -299,7 +311,14 @@ void loop()
   // Sensors x- and y-axes are aligned but magnetometer z-axis (+ down) is opposite to z-axis (+ up) of accelerometer and gyro!
   // This is ok by aircraft orientation standards!  
   // Pass gyro rate as rad/s
-   MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
+  float axm = 1000*(dof.calcAccel(AX.mean()) - abias[0]);
+  float aym = 1000*(dof.calcAccel(AY.mean()) - abias[1]);
+  float azm = 1000*(dof.calcAccel(AZ.mean()) - abias[2]);
+  float gxm = dof.calcGyro(GX.mean()) - gbias[0];
+  float gym = dof.calcGyro(GY.mean()) - gbias[1];
+  float gzm = dof.calcGyro(GZ.mean()) - gbias[2];
+  MadgwickQuaternionUpdate(axm, aym, azm, gxm*PI/180.0f, gym*PI/180.0f, gzm*PI/180.0f, mx, my, mz);
+   //MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
  //MahonyQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
 
     // Serial print and/or display at 0.5 s rate independent of data rates
@@ -345,11 +364,11 @@ void loop()
     
     
     
-    printGforce();
+    //printGforce();
     
-    Serial.print(dof.calcGyro(GX.mean()) - gbias[0], 2); Serial.print("\t");
-    Serial.print(dof.calcGyro(GY.mean()) - gbias[1], 2); Serial.print("\t");
-    Serial.print(dof.calcGyro(GZ.mean()) - gbias[2], 2); Serial.print("\t");
+    //Serial.print(dof.calcGyro(GX.mean()) - gbias[0], 2); Serial.print("\t");
+    //Serial.print(dof.calcGyro(GY.mean()) - gbias[1], 2); Serial.print("\t");
+    //Serial.print(dof.calcGyro(GZ.mean()) - gbias[2], 2); Serial.print("\t");
     
     /*if (abs((int)1000*(dof.calcAccel(AX.mean()) - abias[0])) > 100)
     {
@@ -383,15 +402,18 @@ void loop()
     
 
     
-    //Serial.print("Yaw, Pitch, Roll: ");
-    //Serial.print(yaw, 2);
-    //Serial.print("\t");
+    /*Serial.print("Yaw, Pitch, Roll: ");*/
+    Serial.print(yaw, 2);
+    Serial.print("\t");
     
     Serial.print(pitch, 2);
     Serial.print("\t");
-    if ( roll > 0 ) Serial.print(-roll+180, 2);
-    else Serial.print(-roll-180,2);
-    //Serial.println(roll, 2);
+    //if ( roll > 0 ) Serial.print(-roll+180, 2);
+    //else Serial.print(-roll-180,2);
+    Serial.print(roll, 2);
+    
+    Serial.print("\t");
+    Serial.print(pos);
     
     
     /*Serial.print("q0 = "); Serial.print(q[0]);
@@ -423,6 +445,15 @@ void loop()
     // The 3.3 V 8 MHz Pro Mini is doing pretty well!
     
     count = millis();
+    }
+    
+    if ( ( millis() - count2 ) > 15 )
+    {
+      pos = pos + dpos;
+      if (pos >= 180) dpos = -1;
+      else if (pos <= 0) dpos = 1;
+      myservo.write(pos);
+      count2 = millis();
     }
 }
 

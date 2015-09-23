@@ -301,7 +301,7 @@ void LSM9DS0::calLSM9DS0(float * gbias, float * abias)
     xmReadBytes(OUT_X_L_A, &data[0], 6);
     accel_bias[0] += (((int16_t)data[1] << 8) | data[0]);
     accel_bias[1] += (((int16_t)data[3] << 8) | data[2]);
-    accel_bias[2] += (((int16_t)data[5] << 8) | data[4]) + (int16_t)(1./aRes); // Assumes sensor facing down!
+    accel_bias[2] += (((int16_t)data[5] << 8) | data[4]) - (int16_t)(1./aRes); // Assumes sensor facing up!
   }  
 
   accel_bias[0] /= samples; // average the data
