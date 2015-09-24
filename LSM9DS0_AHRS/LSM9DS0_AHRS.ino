@@ -160,6 +160,7 @@ const byte INT2XM = 13; // INT2XM tells us when mag data is ready
 
 uint32_t count = 0;  // used to control display output rate
 uint32_t count2 = 0;  // used to control display output rate
+uint32_t count3 = 5000;  // used to control display output rate
 uint32_t delt_t = 0; // used to control display output rate
 float pitch, yaw, roll, heading;
 float deltat = 0.0f;        // integration interval for both filter schemes
@@ -210,7 +211,8 @@ void setup()
   pinMode(INT2XM, INPUT);
   pinMode(DRDYG,  INPUT);
   
-  myservo.attach(9);
+  myservo.attach(9,740,2430);
+  myservo.write(0);
         
   analogReference(EXTERNAL);
   // begin() returns a 16-bit value which includes both the gyro 
@@ -273,6 +275,8 @@ void setup()
     XYZbias[0] = sumx/20;
     XYZbias[1] = sumy/20;
     XYZbias[2] = sumz/20;
+    
+    count2 = millis();
 }
 
 void loop()
@@ -317,8 +321,8 @@ void loop()
   float gxm = dof.calcGyro(GX.mean()) - gbias[0];
   float gym = dof.calcGyro(GY.mean()) - gbias[1];
   float gzm = dof.calcGyro(GZ.mean()) - gbias[2];
-  MadgwickQuaternionUpdate(axm, aym, azm, gxm*PI/180.0f, gym*PI/180.0f, gzm*PI/180.0f, mx, my, mz);
-   //MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
+  //MadgwickQuaternionUpdate(axm, aym, azm, gxm*PI/180.0f, gym*PI/180.0f, gzm*PI/180.0f, mx, my, mz);
+   MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
  //MahonyQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
 
     // Serial print and/or display at 0.5 s rate independent of data rates
@@ -358,11 +362,13 @@ void loop()
     
     
     //Serial.print((int)1000*az); Serial.print("\t"); // Raw
-    Serial.print(1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
+    /*Serial.print(1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
     Serial.print(1000*(dof.calcAccel(AY.mean()) - abias[1])); Serial.print("\t");
-    Serial.print(1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");
+    Serial.print(1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");*/
     
-    
+    Serial.print(1000*ax); Serial.print("\t");
+    Serial.print(1000*ay); Serial.print("\t");
+    Serial.print(1000*az); Serial.print("\t");
     
     //printGforce();
     
@@ -447,13 +453,14 @@ void loop()
     count = millis();
     }
     
-    if ( ( millis() - count2 ) > 15 )
+    if ( ( millis() - count2 ) > count3 )
     {
       pos = pos + dpos;
       if (pos >= 180) dpos = -1;
       else if (pos <= 0) dpos = 1;
       myservo.write(pos);
       count2 = millis();
+      count3 = 50;
     }
 }
 
