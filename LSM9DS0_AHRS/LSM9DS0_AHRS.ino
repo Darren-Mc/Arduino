@@ -190,9 +190,9 @@ Average<double> GX(10);
 Average<double> GY(10);
 Average<double> GZ(10);*/
 
-Filter<int16_t> AX(10);
-Filter<int16_t> AY(10);
-Filter<int16_t> AZ(10);
+Filter<int16_t> AX(5);
+Filter<int16_t> AY(5);
+Filter<int16_t> AZ(5);
 
 Filter<int16_t> GX(10);
 Filter<int16_t> GY(10);
@@ -362,13 +362,13 @@ void loop()
     
     
     //Serial.print((int)1000*az); Serial.print("\t"); // Raw
-    /*Serial.print(1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
+    Serial.print(1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
     Serial.print(1000*(dof.calcAccel(AY.mean()) - abias[1])); Serial.print("\t");
-    Serial.print(1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");*/
-    
+    Serial.print(1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");
+    /*
     Serial.print(1000*ax); Serial.print("\t");
     Serial.print(1000*ay); Serial.print("\t");
-    Serial.print(1000*az); Serial.print("\t");
+    Serial.print(1000*az); Serial.print("\t");*/
     
     //printGforce();
     
