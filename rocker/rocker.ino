@@ -16,6 +16,8 @@
 #define BUFLEN 100
 #define MAXF 5
 #define MAXA 45
+#define OFFSET 10
+
 /*****************/
 /* SERVO OBJECTS */
 /*****************/
@@ -27,14 +29,16 @@ Servo servo;
 char buf[BUFLEN+1];
 float freq, amp;
 int pos;
+int maxt = MAX + OFFSET;
+int mint = MIN + OFFSET;
 
 /*********/
 /* SETUP */
 /*********/
 void setup() {
   Serial.begin(38400);
-  servo.attach(SERVO_PIN, MIN, MAX);
-  servo.writeMicroseconds(pos = (MAX+MIN)/2);
+  servo.attach(SERVO_PIN, mint, maxt);
+  servo.writeMicroseconds(pos = (maxt+mint)/2);
 }
 
 /********/
@@ -67,8 +71,8 @@ void loop() {
      Serial.print(amp);
      Serial.println("Deg");
      
-     float ampus = amp*(float)(MAX-MIN)/180.0;
-     float mid = (float)(MAX+MIN)/2.0;
+     float ampus = amp*(float)(maxt-mint)/180.0;
+     float mid = (float)(maxt+mint)/2.0;
      int start = micros();
      while ( Serial.available() == 0 ) {
        pos = round(ampus*sin(2*PI*freq*(micros()-start)/1000000.0) + mid);
