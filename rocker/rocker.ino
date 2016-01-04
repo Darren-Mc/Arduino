@@ -16,7 +16,7 @@
 #define BUFLEN 100
 #define MAXF 5
 #define MAXA 45
-#define OFFSET 10
+#define OFFSET -40
 
 /*****************/
 /* SERVO OBJECTS */
@@ -73,9 +73,10 @@ void loop() {
      
      float ampus = amp*(float)(maxt-mint)/180.0;
      float mid = (float)(maxt+mint)/2.0;
-     int start = micros();
+     long int start = micros();
      while ( Serial.available() == 0 ) {
-       pos = round(ampus*sin(2*PI*freq*(micros()-start)/1000000.0) + mid);
+       long int time = micros();
+       pos = round(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid);
        servo.writeMicroseconds(pos);
      }
      while( pos != round(mid))
