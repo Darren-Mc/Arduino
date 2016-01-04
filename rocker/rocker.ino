@@ -1,7 +1,7 @@
 /************/
 /* INCLUDES */
 /************/
-#include <Servo.h> // Use of the Servo library disables analogWrite() (PWM) functionality on pins 9 and 10
+#include <Servo.h> // Use of the Servo library disables analogWrite() (PWM) functionality on pins 9 and 10 
 
 /***************************/
 /* PIN CONNECTIONS & NAMES */
