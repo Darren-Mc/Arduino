@@ -41,7 +41,7 @@ void setup() {
 /* LOOP */
 /********/
 void loop() {
-  Serial.print("Enter frequency, amplitude");
+  Serial.println("Enter frequency, amplitude");
   while ( Serial.available() == 0 ) {}
    int n = Serial.readBytesUntil(',',buf,BUFLEN);
    buf[n] = '\0';
