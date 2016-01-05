@@ -45,7 +45,6 @@ void setup() {
 /* LOOP */
 /********/
 void loop() {
-  cli();
   Serial.println("Enter frequency, amplitude");
   while ( Serial.available() == 0 ) {}
    int n = Serial.readBytesUntil(',',buf,BUFLEN);
@@ -75,19 +74,17 @@ void loop() {
      float ampus = amp*(float)(maxt-mint)/180.0;
      float mid = (float)(maxt+mint)/2.0;
      long start = micros();
-     //cli();
+     
      while ( Serial.available() == 0 ) {
        long time = micros();
-       digitalWrite(SERVO_PIN, HIGH);
        pos = round(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid);
-       while (micros() - time < pos) {}
-       digitalWrite(SERVO_PIN, LOW);
-       while (micros() - time < 20000) {}
+       servo.writeMicroseconds(pos);
      }
-     //sei();
+     
      while( pos != round(mid))
      {
-       pos = round(ampus*sin(2*PI*freq*(micros()-start)/1000000.0) + mid);
+       long time = micros();
+       pos = round(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid);
        servo.writeMicroseconds(pos);
      }   
    }
