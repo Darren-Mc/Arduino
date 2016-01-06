@@ -50,9 +50,9 @@ void osp_setup(uint8_t cycles) {
   OSP_SET_WIDTH(cycles);    // This also makes new OCR values get loaded frm the buffer on every clock cycle. 
 
   TCCR2A = _BV(COM2B0) | _BV(COM2B1) | _BV(WGM20) | _BV(WGM21); // OC2B=Set on Match, clear on BOTTOM. Mode 7 Fast PWM.
-  TCCR2B = _BV(WGM22)| _BV(CS20);         // Start counting now. WGM22=1 to select Fast PWM mode 7
+  TCCR2B = _BV(WGM22) | _BV(CS22) | _BV(CS20);         // Start counting now. WGM22=1 to select Fast PWM mode 7
 
-  DDRD |= _BV(SERVO_PIN);     // Set pin to output (Note that OC2B = GPIO port PD3 = Arduino Digital Pin 3)
+  DDRD |= _BV(3);     // Set pin to output (Note that OC2B = GPIO port PD3 = Arduino Digital Pin 3)
 }
 
 // Setup the one-shot pulse generator
@@ -80,15 +80,24 @@ void osp_setup() {
 
 void setup()
 {
+  Serial.begin(38400);
   osp_setup();
-
+  OSP_SET_WIDTH(254);
 }
 
 void loop()
 {
   // Step though 0-19 cycle long pulses for demo purposes 
-
-  for (pos = mid-100; pos < mid+100; pos++) {
+  long start = micros();
+  //for(int i=0; i < 150; i++)
+  //{
+    OSP_FIRE(); //160 = 10us
+    while (OSP_INPROGRESS()){}; 
+  //}
+  long now = micros();
+  Serial.println(now-start);
+  _delay_ms(20);
+  /*for (pos = mid-100; pos < mid+100; pos++) {
 
     OSP_SET_AND_FIRE(pos*F_CPU / 1000000);
 
@@ -106,6 +115,6 @@ void loop()
 
     _delay_ms(20);      // Wait a sec to let the audience clap
 
-  }
+  }*/
 
 }
