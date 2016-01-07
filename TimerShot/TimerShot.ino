@@ -34,7 +34,9 @@
 int pos;
 int maxt = MAX + OFFSET;
 int mint = MIN + OFFSET;
-int mid = round((float)(maxt+mint)/2.0);
+double mid = 191.62;
+double amp = 23.30;
+long start;
 
 // Setup the one-shot pulse generator and initialize with a pulse width that is (cycles) clock counts long
 
@@ -83,12 +85,18 @@ void setup()
   Serial.begin(38400);
   osp_setup();
   OSP_SET_WIDTH(254);
+  start = micros();
 }
 
 void loop()
 {
+  /*long time = micros();
+  pos = round(amp*sin(2*PI*0.5*(time-start)/1000000.0) + mid);
+  OSP_SET_AND_FIRE(pos);
+  _delay_ms(20);*/
+  
   // Step though 0-19 cycle long pulses for demo purposes 
-  long start = micros();
+  /*long start = micros();
   //for(int i=0; i < 150; i++)
   //{
     OSP_FIRE(); //160 = 10us
@@ -96,10 +104,11 @@ void loop()
   //}
   long now = micros();
   Serial.println(now-start);
-  _delay_ms(20);
-  /*for (pos = mid-100; pos < mid+100; pos++) {
+  _delay_ms(20);*/
+  
+  for (pos = 168; pos < 192; pos++) {
 
-    OSP_SET_AND_FIRE(pos*F_CPU / 1000000);
+    OSP_SET_AND_FIRE(pos);
 
     //while (OSP_INPROGRESS());         // This just shows how you would wait if nessisary - not nessisary in this application. 
 
@@ -107,14 +116,14 @@ void loop()
 
   }
   
-  for (pos = mid+100; pos > mid-100; pos--) {
+  for (pos = 192; pos > 168; pos--) {
 
-    OSP_SET_AND_FIRE(pos*F_CPU / 1000000);
+    OSP_SET_AND_FIRE(pos);
 
     //while (OSP_INPROGRESS());         // This just shows how you would wait if nessisary - not nessisary in this application. 
 
     _delay_ms(20);      // Wait a sec to let the audience clap
 
-  }*/
+  }
 
 }
