@@ -108,21 +108,27 @@ void loop()
   
   for (pos = 168; pos < 192; pos++) {
 
+    //long beginning = micros();
     OSP_SET_AND_FIRE(pos);
 
     //while (OSP_INPROGRESS());         // This just shows how you would wait if nessisary - not nessisary in this application. 
 
-    _delay_ms(20);      // Wait a sec to let the audience clap
+    //long now = micros();
+    //Serial.println(now-beginning);
+    delay(20);//_delay_ms(20);      // Wait a sec to let the audience clap
 
   }
   
   for (pos = 192; pos > 168; pos--) {
-
+    //long beginning = micros();
     OSP_SET_AND_FIRE(pos);
 
     //while (OSP_INPROGRESS());         // This just shows how you would wait if nessisary - not nessisary in this application. 
 
-    _delay_ms(20);      // Wait a sec to let the audience clap
+    //long now = micros();
+    //Serial.println(now-beginning);
+    
+    delay(20);//_delay_ms(20);      // Wait a sec to let the audience clap
 
   }
 
