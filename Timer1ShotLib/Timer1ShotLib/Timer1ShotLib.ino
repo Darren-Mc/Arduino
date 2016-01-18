@@ -1,7 +1,13 @@
+#include <digitalWriteFast.h>
+
 //#include <TimerOne.h>
+#define	GPIO2_PREFER_SPEED	1
+#include <arduino2.h>
+
 #define RESOLUTION 65536
 
-int period = 20000; // 20 ms
+int period = 2000; // 20 ms
+long start = 0;
 unsigned int pwmPeriod;
 unsigned char clockSelectBits;
 char oldSREG;
@@ -57,7 +63,9 @@ void timerSetup(int duty) {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(38400);
+  pinMode2(8, OUTPUT);
   timerSetup(512);
+  start = micros();
 }
 
 void loop() {
@@ -65,15 +73,18 @@ void loop() {
   //long t1 = micros();
   //while(TCNT1>0){}
   //long t2 = micros();
-  long t1 = micros();
-  TCNT1=6000;
+  //long t1 = micros();
+  //cli();
+  //TCNT1=16*1500;
+  long time = micros();
+  TCNT1 = round(16*(200*sin(2*PI*0.5*(time-start)/1000000.0) + 1500));
+  digitalWrite2(8, HIGH);
   while(TCNT1>0);
+  digitalWrite2(8, LOW);
+  //long t2 = micros();
+  //Serial.println(t2-time);
   //delay(20);
-  long t2 = micros();
-  Serial.println(t2-t1);
-  delay(100);
-}
-
-void isr() {
-  Serial.println(millis());
+  //long t2 = micros();
+  //Serial.println(t2-t1);
+  delay(20);
 }
