@@ -150,7 +150,7 @@ void loop() {
      
      bool above = pos > 16*mid;    
    
-     while ( ( above && pos > 16*mid ) || ( !above && pos < 16*mid ) ) {
+     while (pos != 16*mid) { //( ( above && pos > 16*mid ) || ( !above && pos < 16*mid ) ) {
        long time = micros();
        pos = round(16*(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid));
        TCNT1 = pos;
