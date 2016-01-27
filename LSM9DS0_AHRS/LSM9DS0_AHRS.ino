@@ -418,8 +418,8 @@ void loop()
     //else Serial.print(-roll-180,2);
     Serial.print(roll, 2);
     
-    //Serial.print("\t");
-    //Serial.print(pos);
+    Serial.print("\t");
+    Serial.print(pos);
     
     
     /*Serial.print("q0 = "); Serial.print(q[0]);
@@ -453,7 +453,6 @@ void loop()
     count = millis();
     }
     
-    /*
     if ( ( millis() - count2 ) > count3 )
     {
       pos = pos + dpos;
@@ -462,7 +461,7 @@ void loop()
       myservo.write(pos);
       count2 = millis();
       count3 = 50;
-    }*/
+    }
 }
 
 int printGforce()
