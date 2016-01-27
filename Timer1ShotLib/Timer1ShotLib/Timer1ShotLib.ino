@@ -4,7 +4,7 @@
 #include <digitalWriteFast.h>
 //#include <TimerOne.h>
 #define	GPIO2_PREFER_SPEED	1
-#include <arduino2.h>
+#include <arduino2.h>  
 
 /*************/
 /* CONSTANTS */
@@ -44,7 +44,7 @@ void timerSetup(int duty) {
   else        cycles = RESOLUTION - 1, clockSelectBits = _BV(CS12) | _BV(CS10);  // request was out of bounds, set as maximum
   
   oldSREG = SREG;				
-  cli();							// Disable interrupts for 16 bit register access
+  noInterrupts();							// Disable interrupts for 16 bit register access
   ICR1 = 0;//pwmPeriod = cycles;                                          // ICR1 is TOP in p & f correct pwm mode
   //OCR1A = 0;  // Set TOP to 0. This effectively keeps us from counting becuase the counter just keeps reseting back to 0.
           // We break out of this by manually setting the TCNT higher than 0, in which case it will count all the way up to MAX and then overflow back to 0 and get locked up again.
@@ -70,7 +70,7 @@ void timerSetup(int duty) {
   //Serial.println(dutyCycle);
   
   oldSREG = SREG;
-  cli();
+  noInterrupts();
   OCR1B = duty;//dutyCycle;
   SREG = oldSREG;
   
@@ -100,6 +100,7 @@ void loop() {
   //long t1 = micros();
   //cli();
   //TCNT1=16*1500;
+  /*
   Serial.println("Enter frequency, amplitude");
   pos = 16*mid;
   
@@ -120,7 +121,7 @@ void loop() {
    if( !(freq > 0 && freq <= MAXF) )
    {
      Serial.print("Frequency must be between 0 and ");
-     Serial.println(MAXF);
+     Serial.println(MAXF  );
    }
    else if( !(amp > 0 && amp <= MAXA) )
    {
@@ -135,22 +136,27 @@ void loop() {
      Serial.print(amp);
      Serial.println("Deg");
      
-     float ampus = amp*deg2us;
+     delay(1000); */
+      
+     freq = 0.5;
+     float ampus = 20*deg2us; //amp*deg2us;
      long start = micros();
      
-     while ( Serial.available() == 0 ) {
+     while (1) { //( Serial.available() == 0 ) {
        long time = micros();
        pos = round(16*(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid));
+       noInterrupts();
        TCNT1 = pos;
        digitalWrite2(8, HIGH);
        while(TCNT1>0);
        digitalWrite2(8, LOW);
+       interrupts();
        delay(20);
-     }
+     }/*
      
      bool above = pos > 16*mid;    
    
-     while (pos != 16*mid) { //( ( above && pos > 16*mid ) || ( !above && pos < 16*mid ) ) {
+     while ( ( above && pos > 16*mid ) || ( !above && pos < 16*mid ) ) {
        long time = micros();
        pos = round(16*(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid));
        TCNT1 = pos;
@@ -159,7 +165,7 @@ void loop() {
        digitalWrite2(8, LOW);
        delay(20);
      }
-   }
+   }*/
   //long time = micros();
   //TCNT1 = round(16*(200*sin(2*PI*0.5*(time-start)/1000000.0) + 1500));
   //digitalWrite2(8, HIGH);
