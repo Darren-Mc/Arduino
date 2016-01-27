@@ -45,7 +45,6 @@ void setup() {
 /* LOOP */
 /********/
 void loop() {
-  /*
   Serial.println("Enter frequency, amplitude");
   while ( Serial.available() == 0 ) {}
    int n = Serial.readBytesUntil(',',buf,BUFLEN);
@@ -70,25 +69,25 @@ void loop() {
      Serial.print(freq);
      Serial.print("Hz, ");
      Serial.print(amp);
-     Serial.println("Deg");*/
-     freq = 0.5;
-     float ampus = 20*(float)(maxt-mint)/180.0;//amp*(float)(maxt-mint)/180.0;
+     Serial.println("Deg");
+     
+     float ampus = amp*(float)(maxt-mint)/180.0;
      float mid = (float)(maxt+mint)/2.0;
      long start = micros();
      
-     while ( 1){//Serial.available() == 0 ) {
+     while ( Serial.available() == 0 ) {
        long time = micros();
        pos = round(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid);
        servo.writeMicroseconds(pos);
      }
-     /*
+     
      while( pos != round(mid))
      {
        long time = micros();
        pos = round(ampus*sin(2*PI*freq*(time-start)/1000000.0) + mid);
        servo.writeMicroseconds(pos);
      }   
-   }*/
+   }
 }
 
 /*void servoWrite(int us)
