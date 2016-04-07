@@ -192,7 +192,7 @@ int moveArm( int basPulse, int shlPulse, int elbPulse, int wriPulse )
 {  
    int ret_val = 0;
    
-   checkPosition();
+   //checkPosition();
    //if ( ( ret_val = checkPosition() ) != 0 ) return ret_val;
    
    DEBUG("moveArm("); DEBUG(basPulse); DEBUG(","); DEBUG(shlPulse); DEBUG(","); DEBUG(elbPulse); DEBUG(","); DEBUG(wriPulse); DEBUGln(")");
