@@ -173,7 +173,7 @@ float abias[3] = {0, 0, 0}, gbias[3] = {0, 0, 0};
 float ax, ay, az, gx, gy, gz, mx, my, mz; // variables to hold latest sensor data values 
 float q[4] = {1.0f, 0.0f, 0.0f, 0.0f};    // vector to hold quaternion
 float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for Mahony method
-float temperature;
+//float temperature;
 
 double XYZ[3];
 double XYZmin[] = {258.758,283.705,140.1667};
@@ -205,7 +205,7 @@ Filter<int> Z(10);
 void setup()
 {
   Serial.begin(38400); // Start serial at 38400 bps
- 
+  
   // Set up interrupt pins as inputs:
   pinMode(INT1XM, INPUT);
   pinMode(INT2XM, INPUT);
@@ -305,8 +305,8 @@ void loop()
     my = dof.calcMag(dof.my);
     mz = dof.calcMag(dof.mz);
     
-    dof.readTemp();
-    temperature = 21.0 + (float) dof.temperature/8.; // slope is 8 LSB per degree C, just guessing at the intercept
+    //dof.readTemp();
+    //temperature = 21.0 + (float) dof.temperature/8.; // slope is 8 LSB per degree C, just guessing at the intercept
   }
 
   Now = micros();
