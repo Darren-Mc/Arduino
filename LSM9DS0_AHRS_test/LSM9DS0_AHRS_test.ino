@@ -213,7 +213,7 @@ void setup()
   
   myservo.attach(9,740,2430);
   myservo.write(0);
-  
+        
   analogReference(EXTERNAL);
   // begin() returns a 16-bit value which includes both the gyro 
   // and accelerometers WHO_AM_I response. You can check this to
@@ -225,8 +225,8 @@ void setup()
   Serial.println("Should be 0x49D4");
   Serial.println();*/
   //Serial.print("Time(s)\t"); Serial.print("Ax (mg)"); Serial.print("\t"); Serial.print("Ay (mg)"); Serial.print("\t"); Serial.print("Az (mg)"); Serial.print("\t"); Serial.print("Axold (mg)"); Serial.print("\t"); Serial.print("Ayold (mg)"); Serial.print("\t"); Serial.print("Azold (mg)"); Serial.print("\t"); Serial.print("Gx (Deg/s)"); Serial.print("\t"); Serial.print("Gy (Deg/s)"); Serial.print("\t"); Serial.print("Gz (Deg/s)"); Serial.print("\t"); Serial.print("Roll (Deg)"); Serial.print("\t"); Serial.println("Pitch (Deg)");
-  Serial.println("Initialising...");
   delay(4000); //2000 (Tried 200 and made biases innaccurate!)
+
   
  // Set data output ranges; choose lowest ranges for maximum resolution
  // Accelerometer scale can be: A_SCALE_2G, A_SCALE_4G, A_SCALE_6G, A_SCALE_8G, or A_SCALE_16G   
@@ -277,42 +277,29 @@ void setup()
     XYZbias[2] = sumz/20;
     
     count2 = millis();
-    
-    //IMU 1
-    /*Serial.print("Starting in 3..");
-    delay(1000);
-    Serial.print("2..");
-    delay(1000);
-    Serial.println("1..");
-    delay(1000);*/
-    
-    //IMU 2
-    Serial.println("Ready?");
-    while(!Serial.available())
-    {}
 }
 
 void loop()
 {
-  if(digitalRead(DRDYG)) {  // When new gyro data is ready
+  /*if(digitalRead(DRDYG)) {  // When new gyro data is ready
   dof.readGyro();           // Read raw gyro data
     gx = dof.calcGyro(dof.gx) - gbias[0];   // Convert to degrees per seconds, remove gyro biases
     gy = dof.calcGyro(dof.gy) - gbias[1];
     gz = dof.calcGyro(dof.gz) - gbias[2];
     GX.push(dof.gx); GY.push(dof.gy); GZ.push(dof.gz);
-  }
+  }*/
   
   if(digitalRead(INT1XM)) {  // When new accelerometer data is ready
     dof.readAccel();         // Read raw accelerometer data
     ax = dof.calcAccel(dof.ax) - abias[0];   // Convert to g's, remove accelerometer biases
     ay = dof.calcAccel(dof.ay) - abias[1];
-    az = dof.calcAccel(dof.az) - abias[2];
+    az = -(dof.calcAccel(dof.az) - abias[2]);
     AX.push(dof.ax); AY.push(dof.ay); AZ.push(dof.az);
     //Serial.print("dof.ax: "); Serial.print(dof.ax); Serial.print(", ax_g: "); Serial.print(dof.calcAccel(dof.ax),3); Serial.print(", ax: "); Serial.println(ax);
     //Serial.print(dof.ax); Serial.print('\t'); Serial.print(dof.ay); Serial.print('\t'); Serial.print(dof.az); Serial.print('\n');
   }
   
-  if(digitalRead(INT2XM)) {  // When new magnetometer data is ready
+  /*if(digitalRead(INT2XM)) {  // When new magnetometer data is ready
     dof.readMag();           // Read raw magnetometer data
     mx = dof.calcMag(dof.mx);     // Convert to Gauss and correct for calibration
     my = dof.calcMag(dof.my);
@@ -320,7 +307,7 @@ void loop()
     
     //dof.readTemp();
     //temperature = 21.0 + (float) dof.temperature/8.; // slope is 8 LSB per degree C, just guessing at the intercept
-  }
+  }*/
 
   Now = micros();
   deltat = ((Now - lastUpdate)/1000000.0f); // set integration time by time elapsed since last filter update
@@ -328,17 +315,14 @@ void loop()
   // Sensors x- and y-axes are aligned but magnetometer z-axis (+ down) is opposite to z-axis (+ up) of accelerometer and gyro!
   // This is ok by aircraft orientation standards!  
   // Pass gyro rate as rad/s
-  float axm = 1000*(dof.calcAccel(AX.mean()) - abias[0]);
+  /*float axm = 1000*(dof.calcAccel(AX.mean()) - abias[0]);
   float aym = 1000*(dof.calcAccel(AY.mean()) - abias[1]);
   float azm = 1000*(dof.calcAccel(AZ.mean()) - abias[2]);
   float gxm = dof.calcGyro(GX.mean()) - gbias[0];
   float gym = dof.calcGyro(GY.mean()) - gbias[1];
-  float gzm = dof.calcGyro(GZ.mean()) - gbias[2];
+  float gzm = dof.calcGyro(GZ.mean()) - gbias[2];*/
   //MadgwickQuaternionUpdate(axm, aym, azm, gxm*PI/180.0f, gym*PI/180.0f, gzm*PI/180.0f, mx, my, mz);
-  
-  //if( az > 0 ) {
-  
-   MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
+   //MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
  //MahonyQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, mx, my, mz);
 
     // Serial print and/or display at 0.5 s rate independent of data rates
@@ -360,13 +344,13 @@ void loop()
   // Tait-Bryan angles as well as Euler angles are non-commutative; that is, to get the correct orientation the rotations must be
   // applied in the correct order which for this configuration is yaw, pitch, and then roll.
   // For more see http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles which has additional links.
-    yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   
+    /*yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   
     pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
     roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
     pitch *= 180.0f / PI;
     yaw   *= 180.0f / PI; 
     //yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
-    roll  *= 180.0f / PI;
+    roll  *= 180.0f / PI;*/
     
     if( Start == 0 )
     {
@@ -381,12 +365,12 @@ void loop()
     /*
     Serial.print(1000*(dof.calcAccel(AX.mean()) - abias[0])); Serial.print("\t");
     Serial.print(1000*(dof.calcAccel(AY.mean()) - abias[1])); Serial.print("\t");
-    Serial.print(-1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");*/
+    Serial.print(-1000*(dof.calcAccel(AZ.mean()) - abias[2])); Serial.print("\t");
     
     Serial.print(1000*ax); Serial.print("\t");
     Serial.print(1000*ay); Serial.print("\t");
-    Serial.print(1000*az); Serial.print("\t");
-    /*
+    Serial.print(1000*az); Serial.print("\t");*/
+    
     Serial.print(dof.ax); Serial.print("\t");
     Serial.print(dof.ay); Serial.print("\t");
     Serial.print(dof.az); Serial.print("\t");//*/
@@ -429,7 +413,7 @@ void loop()
     
 
     
-    /*Serial.print("Yaw, Pitch, Roll: ");*/
+    /*Serial.print("Yaw, Pitch, Roll: ");
     Serial.print(yaw, 2);
     Serial.print("\t");
     
@@ -473,8 +457,6 @@ void loop()
     
     count = millis();
     }
-    
-  //} // if az
     
     /*
     if ( ( millis() - count2 ) > count3 )

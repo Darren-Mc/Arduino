@@ -51,12 +51,16 @@ float zeroWind_ADunits;
 float zeroWind_volts;
 float WindSpeed_MPH;
 
+uint32_t Start = 0;
+
 void setup() {
 
   Serial.begin(57600);   // faster printing to get a bit better throughput on extended info
   // remember to change your serial monitor
 
-  Serial.println("start");
+  Serial.println("Ready?");
+  while(!Serial.available())
+  {}
   // put your setup code here, to run once:
 
   //   Uncomment the three lines below to reset the analog pins A2 & A3
@@ -70,7 +74,15 @@ void setup() {
 void loop() {
 
 
-  if (millis() - lastMillis > 200){      // read every 200 ms - printing slows this down further
+  if (millis() - lastMillis > 50){      // read every 200 ms - printing slows this down further
+  
+    if( Start == 0 )
+    {
+      Start = millis();
+      Serial.print(0);
+    }
+    else Serial.print((double)(millis()-Start)/1000.0);
+    Serial.print("\t");
     
     TMP_Therm_ADunits = analogRead(analogPinForTMP);
     RV_Wind_ADunits = analogRead(analogPinForRV);
@@ -91,7 +103,7 @@ void loop() {
     
    WindSpeed_MPH =  pow(((RV_Wind_Volts - zeroWind_volts) /.2300) , 2.7265);   
    
-    Serial.print("  TMP volts ");
+    /*Serial.print("  TMP volts ");
     Serial.print(TMP_Therm_ADunits * 0.0048828125);
     
     Serial.print(" RV volts ");
@@ -101,9 +113,9 @@ void loop() {
     Serial.print(TempCtimes100 );
 
     Serial.print("   ZeroWind volts ");
-    Serial.print(zeroWind_volts);
+    Serial.print(zeroWind_volts);*/
 
-    Serial.print("   WindSpeed MPH ");
+    //Serial.print("   WindSpeed MPH ");
     Serial.println((float)WindSpeed_MPH);
     lastMillis = millis();    
   } 
